@@ -156,7 +156,12 @@ pub mod interaction2d {
     pub struct Hover;
     
     /// Component that marks an entity as draggable.
-    pub struct Draggable;
+    pub struct Draggable {
+        /// The drag system should automatically update
+        /// the entities transformation while being dragged
+        /// [y/ n].
+        pub update: bool,
+    }
 
     /// Marker component to indicate that the
     /// given entity is currently dragged.
@@ -166,7 +171,7 @@ pub mod interaction2d {
         /// where the click occured.
         click_offset: Vec2,
     }
-    
+
     /// Check if the mouse interacts with interactable entities in the world.
     ///
     /// If the mouse hovers over an interactable entity, the `Hover` marker
@@ -230,7 +235,8 @@ pub mod interaction2d {
                     e = Some(entity);
                 }
             }
-
+            
+            // Clear table so information are only availabe for one tick.
             selected.clear();
 
             if let Some(entity) = e {
@@ -244,11 +250,13 @@ pub mod interaction2d {
 
     pub fn drag_system(
         mw: Res<MouseWorldPos>,
-        mut q_drag: Query<(&mut Transform, &mut Interactable, &Drag), ()>
+        mut q_drag: Query<(&mut Transform, &Draggable, &Drag), ()>
     ) {
-        for (mut transform, interact, drag) in q_drag.iter_mut() {
-            transform.translation.x = mw.x + drag.click_offset.x;
-            transform.translation.y = mw.y + drag.click_offset.y;
+        for (mut transform, draggable, drag) in q_drag.iter_mut() {
+            if draggable.update {
+                transform.translation.x = mw.x + drag.click_offset.x;
+                transform.translation.y = mw.y + drag.click_offset.y;
+            }
         }
     }
 }

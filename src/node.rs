@@ -2,6 +2,8 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use std::collections::HashMap;
 use nodus::world2d::interaction2d::*;
+use std::sync::atomic::{AtomicI32, Ordering};
+ use nodus::world2d::camera2d::MouseWorldPos;
 
 pub struct NodePlugin;
 
@@ -28,56 +30,11 @@ impl Plugin for NodePlugin {
                 propagation_system.system().after(NodeLabels::Transition)
             )
             .add_system(highlight_connector_system.system())
-            .add_system(drag_gate.system());
-            //.add_system(drag_node.system());
-            
-
+            .add_system(drag_gate.system())
+            .add_system(drag_connector.system());
         
         info!("NodePlugin loaded");
     }
-}
-
-/*
-fn interact_with_node(
-    interaction_state: Res<InteractionState>,
-    mut query: Query<(Entity, &mut ShapeColors), With<Gate>>
-) {
-    //info!("{}", interaction_state.get_group(Group(crate::NODE_GROUP)).len());
-    for (entity, mut shape_color) in query.iter_mut() {
-        if interaction_state
-            .get_group(Group(crate::NODE_GROUP))
-            .iter()
-            .find(|(e, _)| *e == entity)
-            .is_some()
-        {
-            info!("fuck");
-            shape_color.main = Color::TEAL;
-        } 
-    }
-}
-
-fn drag_node(
-  mut commands: Commands,
-  mouse_button_input: Res<Input<MouseButton>>,
-  interaction_state: Res<InteractionState>,
-  dragged_node_query: Query<Entity, (With<Dragged>, With<Gate>)>,
-) {
-  // We're only interested in the release of the left mouse button
-  if !mouse_button_input.just_released(MouseButton::Left) {
-    return;
-  }
-
-  for dragged_node in dragged_node_query.iter() {
-      info!("drgging {:?}", dragged_node);
-
-      commands.entity(dragged_node).remove::<Dragged>();
-  }
-}
-*/
-
-fn move_test(mut query: Query<&mut Transform, With<Gate>>) {
-    let mut transform = query.single_mut().unwrap();
-    transform.translation.x = (transform.translation.x + 4.);
 }
 
 /// The name of an entity.
@@ -116,8 +73,95 @@ enum NodeLabels {
 /// connected inputs.
 type TargetMap = HashMap<Entity, Vec<usize>>;
 
+#[derive(Debug, Copy, Clone)]
+pub struct NodeRange {
+    min: u32,
+    max: u32
+}
+
 /// Flag for logic gates.
-pub struct Gate;
+pub struct Gate {
+    pub inputs: u32,
+    pub outputs: u32,
+    pub in_range: NodeRange,
+    pub out_range: NodeRange,
+}
+
+impl Gate {
+
+    pub fn new(
+        commands: &mut Commands, 
+        name: String,
+        x: f32, y: f32, 
+        in_range: NodeRange, 
+        out_range: NodeRange,
+        functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>
+    ) {
+        static Z_INDEX: AtomicI32 = AtomicI32::new(1);
+        const GATE_SIZE: f32 = 100.;
+        
+        let factor = if in_range.min >= out_range.min { in_range.min } else { out_range.min };
+        let width = GATE_SIZE;
+        let height = GATE_SIZE + if factor > 2 {
+            (factor - 1) as f32 * GATE_SIZE / 2.
+        } else { 0. };
+        let in_step = -(height / (in_range.min as f32 + 1.));
+        let out_step = -(height / (out_range.min as f32 + 1.));
+        let offset = height / 2.;
+
+        let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
+        let shape = shapes::Rectangle {
+            width,
+            height,
+            ..shapes::Rectangle::default()
+        };
+        let gate = GeometryBuilder::build_as(
+            &shape,
+            ShapeColors::outlined(Color::TEAL, Color::BLACK),
+            DrawMode::Outlined {
+                fill_options: FillOptions::default(),
+                outline_options: StrokeOptions::default().with_line_width(10.0),
+            },
+            Transform::from_xyz(x, y, zidx),
+        );
+        let parent = commands
+            .spawn_bundle(gate)
+            .insert(Gate { 
+                inputs: in_range.min,
+                outputs: out_range.min,
+                in_range,
+                out_range
+            })
+            .insert(Name(name))
+            .insert(Inputs(vec![State::None; in_range.min as usize]))
+            .insert(Outputs(vec![State::None; out_range.min as usize]))
+            .insert(Transitions(functions))
+            .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
+            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(width, height), NODE_GROUP))
+            .insert(Selectable)
+            .insert(Draggable { update: true })
+            .id();
+        
+        let mut entvec: Vec<Entity> = Vec::new();
+        for i in 1..=in_range.min {
+            entvec.push(Connector::new(commands, 
+                                       Vec3::new(-75., offset + i as f32 * in_step, zidx), 
+                                       12., 
+                                       ConnectorType::In));
+        }
+
+        commands.entity(parent).push_children(&entvec);
+        entvec.clear();
+
+        for i in 1..=out_range.min {
+            entvec.push(Connector::new(commands, 
+                                       Vec3::new(75., offset + i as f32 * out_step, zidx), 
+                                       12., 
+                                       ConnectorType::Out));
+        }
+        commands.entity(parent).push_children(&entvec);
+    }
+}
 
 /// Input values of a logical node, e.g. a gate.
 pub struct Inputs(Vec<State>);
@@ -141,7 +185,7 @@ pub struct Targets(Vec<TargetMap>);
 /// transition functions.
 fn transition_system(mut query: Query<(&Inputs, &Transitions, &mut Outputs)>) {
     for (inputs, transitions, mut outputs) in query.iter_mut() {
-        for i in 0..outputs.0.len() {
+        for i in 0..transitions.0.len() {
             outputs.0[i] = transitions.0[i](&inputs.0);
         }
     }
@@ -165,49 +209,38 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
 }
 
 fn setup(mut commands: Commands) {
-    add_gate(&mut commands, 0., 0., 100., 100.);
-    add_gate(&mut commands, 50., 50., 100., 100.);
+    Gate::new(&mut commands, 
+              "NOT Gate".to_string(), 
+              0., 0., 
+              NodeRange { min: 1, max: 1 },
+              NodeRange { min: 1, max: 1 },
+              vec![Box::new(|inputs| {
+                    match inputs[0] {
+                        State::None => State::None,
+                        State::Low => State::High,
+                        State::High => State::Low,
+                    }
+              })]);
+
+    Gate::new(&mut commands, 
+              "AND Gate".to_string(), 
+              250., 0., 
+              NodeRange { min: 2, max: 16 },
+              NodeRange { min: 1, max: 1 },
+              vec![Box::new(|inputs| {
+                  let mut ret = State::High;
+                  for i in inputs {
+                    match i {
+                        State::None => { ret = State::None; },
+                        State::Low => { ret = State::Low; break; },
+                        State::High => { },
+                    }
+                  }
+                  ret
+              })]);
 }
 
 fn add_gate(commands: &mut Commands, x: f32, y: f32, width: f32, height: f32) {
-    let shape = shapes::Rectangle {
-        width,
-        height,
-        ..shapes::Rectangle::default()
-    };
-
-    let gate = GeometryBuilder::build_as(
-        &shape,
-        ShapeColors::outlined(Color::TEAL, Color::BLACK),
-        DrawMode::Outlined {
-            fill_options: FillOptions::default(),
-            outline_options: StrokeOptions::default().with_line_width(10.0),
-        },
-        Transform::from_xyz(x, y, 1.),
-    );
-
-    let parent = commands
-        .spawn_bundle(gate)
-        .insert(Gate)
-        .insert(Name(String::from("NOT Gate")))
-        .insert(Inputs(vec![State::Low]))
-        .insert(Outputs(vec![State::None]))
-        .insert(Transitions(vec![Box::new(|inputs| { 
-            match inputs[0] {
-                State::None => State::None,
-                State::High => State::Low,
-                State::Low => State::High,
-            }
-        })]))
-        .insert(Targets(vec![HashMap::new()]))
-        .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(width, height), NODE_GROUP))
-        .insert(Selectable)
-        .insert(Draggable)
-        .id();
-    
-    let child = add_connector(commands, x, y, 30., ConnectorType::In);
-
-    commands.entity(parent).push_children(&[child]);
 }
 
 fn drag_gate(
@@ -233,28 +266,33 @@ pub struct Connector {
     ctype: ConnectorType,
 }
 
-fn add_connector(commands: &mut Commands, x: f32, y: f32, radius: f32, ctype: ConnectorType) -> Entity {
-    let circle = shapes::Circle {
-        radius: radius,
-        center: Vec2::new(0., 0.),
-    };
+impl Connector {
+    /// Create a new connector for a logic node.
+    pub fn new(commands: &mut Commands, position: Vec3, radius: f32, ctype: ConnectorType) -> Entity {
+        let circle = shapes::Circle {
+            radius: radius,
+            center: Vec2::new(0., 0.),
+        };
 
-    let connector = GeometryBuilder::build_as(
-        &circle,
-        ShapeColors::outlined(Color::TEAL, Color::BLACK),
-        DrawMode::Outlined {
-            fill_options: FillOptions::default(),
-            outline_options: StrokeOptions::default().with_line_width(5.0),
-        },
-        Transform::from_xyz(0., 0., 1.),
-    );
+        let connector = GeometryBuilder::build_as(
+            &circle,
+            ShapeColors::outlined(Color::TEAL, Color::BLACK),
+            DrawMode::Outlined {
+                fill_options: FillOptions::default(),
+                outline_options: StrokeOptions::default().with_line_width(5.0),
+            },
+            Transform::from_xyz(position.x, position.y, position.z),
+        );
 
-    commands
-        .spawn_bundle(connector)
-        .insert(Connector { ctype: ctype })
-        .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(radius * 2., radius * 2.), 
-                                  CONNECTOR_GROUP))
-        .id()
+        commands
+            .spawn_bundle(connector)
+            .insert(Connector { ctype: ctype })
+            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(radius * 2., radius * 2.), 
+                                      CONNECTOR_GROUP))
+            .insert(Selectable)
+            .insert(Draggable { update: false })
+            .id()
+    }
 }
 
 /// Highlight a connector by increasing its radius when the mouse
@@ -266,13 +304,55 @@ fn highlight_connector_system(
     mut q2_hover: Query<&mut Transform, (Without<Hover>, With<Connector>)>,
 ) { 
     for (mut transform) in q_hover.iter_mut() {
-        transform.scale = Vec3::new(1.2, 1.2, 1.);
+        transform.scale = Vec3::new(1.2, 1.2, transform.scale.z);
     }
 
     for (mut transform) in q2_hover.iter_mut() {
-        transform.scale = Vec3::new(1.0, 1.0, 1.);
+        transform.scale = Vec3::new(1.0, 1.0, transform.scale.z);
     }
 }
 
+pub struct ConnectionLineIndicator;
 
+fn drag_connector(
+    mut commands: Commands,
+    mb: Res<Input<MouseButton>>,
+    mw: Res<MouseWorldPos>,
+    q_dragged: Query<(Entity, &GlobalTransform), (With<Drag>, With<Connector>)>,
+    q_conn_line: Query<Entity, With<ConnectionLineIndicator>>
+) {
+    use bevy_prototype_lyon::entity::ShapeBundle;
+
+    if let Ok((entity, transform)) = q_dragged.single() {
+        if mb.just_released(MouseButton::Left) {
+            commands.entity(entity).remove::<Drag>();
+            if let Ok(conn_line) = q_conn_line.single() {
+                commands.entity(conn_line).despawn();
+
+            }
+        } else {
+            let conn_entity = if let Ok(conn_line) = q_conn_line.single() {
+                commands.entity(conn_line).remove_bundle::<ShapeBundle>();
+                conn_line
+            } else {
+                commands.spawn().insert(ConnectionLineIndicator).id()  
+            };
+
+            let shape = shapes::Line(Vec2::new(transform.translation.x, transform.translation.y), 
+                                     Vec2::new(mw.x, mw.y));
+
+            let line = GeometryBuilder::build_as(
+                &shape,
+                ShapeColors::outlined(Color::TEAL, Color::BLACK),
+                DrawMode::Outlined {
+                    fill_options: FillOptions::default(),
+                    outline_options: StrokeOptions::default().with_line_width(10.0),
+                },
+                Transform::from_xyz(0., 0., 1.),
+            );
+
+            commands.entity(conn_entity).insert_bundle(line);
+        }
+    }
+}
 

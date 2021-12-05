@@ -29,8 +29,6 @@ fn main() {
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(InteractionPlugin) // hover, click
-        .add_plugin(DragPlugin) // drag n' drop
         .add_plugin(ShapePlugin) // immegiate 2d drawing
         .add_plugin(NodePlugin)
         .add_plugin(Camera2DPlugin)
