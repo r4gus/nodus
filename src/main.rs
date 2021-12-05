@@ -10,13 +10,16 @@ use bevy_interact_2d::{
 mod node;
 
 use node::*;
-use nodus::world2d::World2DPlugin;
+use nodus::world2d::{
+    camera2d::Camera2DPlugin, 
+    interaction2d::Interaction2DPlugin
+};
 
 const NODE_GROUP: u8 = 0;
 
 fn main() {
     App::build()
-        .insert_resource(ClearColor(Color::rgb(0.9, 0.4, 0.4)))
+        .insert_resource(ClearColor(Color::rgb(0.41, 0.41, 0.41)))
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(WindowDescriptor {
             title: "nodus".to_string(),
@@ -30,7 +33,8 @@ fn main() {
         .add_plugin(DragPlugin) // drag n' drop
         .add_plugin(ShapePlugin) // immegiate 2d drawing
         .add_plugin(NodePlugin)
-        .add_plugin(World2DPlugin)
+        .add_plugin(Camera2DPlugin)
+        .add_plugin(Interaction2DPlugin)
         .run();
 }
 

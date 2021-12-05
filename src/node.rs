@@ -1,9 +1,12 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use std::collections::HashMap;
-use nodus::world2d::interaction::*;
+use nodus::world2d::interaction2d::*;
 
 pub struct NodePlugin;
+
+const NODE_GROUP: u32 = 1;
+const CONNECTOR_GROUP: u32 = 2;
 
 impl Plugin for NodePlugin {
     fn build(&self, app: &mut AppBuilder) {
@@ -23,8 +26,9 @@ impl Plugin for NodePlugin {
             .add_system_to_stage(
                 NodeStages::Update,
                 propagation_system.system().after(NodeLabels::Transition)
-            );
-            //.add_system(interact_with_node.system())
+            )
+            .add_system(highlight_connector_system.system())
+            .add_system(drag_gate.system());
             //.add_system(drag_node.system());
             
 
@@ -196,12 +200,26 @@ fn add_gate(commands: &mut Commands, x: f32, y: f32, width: f32, height: f32) {
             }
         })]))
         .insert(Targets(vec![HashMap::new()]))
-        .insert(Interactable::new(Vec2::new(x, y), Vec2::new(width, height)))
+        .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(width, height), NODE_GROUP))
+        .insert(Selectable)
+        .insert(Draggable)
         .id();
     
-    let child = add_connector(commands, 0., 0., 30., ConnectorType::In);
+    let child = add_connector(commands, x, y, 30., ConnectorType::In);
 
     commands.entity(parent).push_children(&[child]);
+}
+
+fn drag_gate(
+    mut commands: Commands,
+    mb: Res<Input<MouseButton>>,
+    q_dragged: Query<Entity, (With<Drag>, With<Gate>)>
+) {
+    if mb.just_released(MouseButton::Left) {
+        for dragged_gate in q_dragged.iter() {
+            commands.entity(dragged_gate).remove::<Drag>();
+        }
+    }
 }
 
 // ############################# Connector ##############################################
@@ -217,8 +235,8 @@ pub struct Connector {
 
 fn add_connector(commands: &mut Commands, x: f32, y: f32, radius: f32, ctype: ConnectorType) -> Entity {
     let circle = shapes::Circle {
-        radius: 30.,
-        center: Vec2::new(x, y),
+        radius: radius,
+        center: Vec2::new(0., 0.),
     };
 
     let connector = GeometryBuilder::build_as(
@@ -228,16 +246,33 @@ fn add_connector(commands: &mut Commands, x: f32, y: f32, radius: f32, ctype: Co
             fill_options: FillOptions::default(),
             outline_options: StrokeOptions::default().with_line_width(5.0),
         },
-        Transform::from_xyz(x, y, 1.),
+        Transform::from_xyz(0., 0., 1.),
     );
 
     commands
         .spawn_bundle(connector)
         .insert(Connector { ctype: ctype })
+        .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(radius * 2., radius * 2.), 
+                                  CONNECTOR_GROUP))
         .id()
 }
 
-fn highlight_connector_system() { }
+/// Highlight a connector by increasing its radius when the mouse
+/// hovers over it.
+fn highlight_connector_system(
+    commands: Commands,
+    // We need all connectors the mouse hovers over.
+    mut q_hover: Query<&mut Transform, (With<Hover>, With<Connector>)>,
+    mut q2_hover: Query<&mut Transform, (Without<Hover>, With<Connector>)>,
+) { 
+    for (mut transform) in q_hover.iter_mut() {
+        transform.scale = Vec3::new(1.2, 1.2, 1.);
+    }
+
+    for (mut transform) in q2_hover.iter_mut() {
+        transform.scale = Vec3::new(1.0, 1.0, 1.);
+    }
+}
 
 
 

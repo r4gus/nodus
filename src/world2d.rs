@@ -1,24 +1,23 @@
 use bevy::prelude::*;
 
-pub struct World2DPlugin;
-
-impl Plugin for World2DPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.insert_resource(camera::MouseWorldPos(Vec2::new(0., 0.)))
-            .add_startup_system(camera::setup.system())
-            .add_system(camera::cursor_system.system())
-            .add_system(interaction::interaction_system.system());
-    }
-}
-
-pub mod camera {
+pub mod camera2d {
     use bevy::prelude::*;
     use core::ops::{Deref, DerefMut};
+
+    pub struct Camera2DPlugin;
+
+    impl Plugin for Camera2DPlugin {
+        fn build(&self, app: &mut AppBuilder) {
+            app.insert_resource(MouseWorldPos(Vec2::new(0., 0.)))
+                .add_startup_system(setup.system())
+                .add_system(cursor_system.system());
+        }
+    }
 
     /// Used to help identify the main camera.
     pub struct MainCamera;
     
-    /// Position of the mouse cursor within the 2d world.
+    /// Position resource of the mouse cursor within the 2d world.
     pub struct MouseWorldPos(pub Vec2);
 
     impl Deref for MouseWorldPos {
@@ -78,15 +77,53 @@ pub mod camera {
     }
 }
 
-pub mod interaction {
-    use super::camera::MouseWorldPos;
+pub mod interaction2d {
+    use super::camera2d::MouseWorldPos;
     use bevy::prelude::*;
+    use core::ops::{Deref, DerefMut};
+    use std::collections::HashMap;
+
+    pub struct Interaction2DPlugin;
+
+    impl Plugin for Interaction2DPlugin {
+        fn build(&self, app: &mut AppBuilder) {
+            app.insert_resource(Selected(HashMap::new()))
+                .add_system(interaction_system.system().label("interaction"))
+                .add_system(selection_system.system().after("interaction"))
+                .add_system(drag_system.system());
+        }
+    }
+    
+    /// Resource that holds all selected entities.
+    #[derive(Debug)]
+    pub struct Selected(pub HashMap<u32, Vec<Entity>>);
+
+    impl Deref for Selected {
+        type Target = HashMap<u32, Vec<Entity>>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl DerefMut for Selected {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
+    }
+    
+    /// Component that marks an entity as selectable.
+    pub struct Selectable;
     
     /// Component that marks an entity interactable.
     pub struct Interactable {
         /// The bounding box defines the area where the mouse
         /// can interact with the entity.
         bounding_box: (Vec2, Vec2),
+        /// The group this interactable entity belongs to. This
+        /// can be a item, enemy, ... or just use one group for
+        /// everything.
+        group: u32,
     }
     
     impl Interactable {
@@ -96,23 +133,31 @@ pub mod interaction {
         ///
         /// * `position` - The position of the bounding box within the world.
         /// * `dimensions` - The width and the height of the bounding box.
+        /// * `group` - The group the selectable entity belongs to.
         ///
         /// The `position` marks the center of the bounding box.
-        pub fn new(position: Vec2, dimensions: Vec2) -> Self {
+        pub fn new(position: Vec2, dimensions: Vec2, group: u32) -> Self {
             Self {
                 bounding_box: (Vec2::new(position.x - dimensions.x / 2., 
                                position.y - dimensions.y / 2.), dimensions),
+                group
             }
         }
+        
+        /// Update the position of the bounding box within the world.
+        pub fn update_pos(&mut self, x: f32, y: f32) {
+            self.bounding_box.0.x = x;
+            self.bounding_box.0.y = y;
+        }
     }
-    
-    /// Component that marks an entity as draggable.
-    pub struct Draggable;
     
     /// Marker component to indicate that the mouse
     /// currently hovers over the given entity.
     pub struct Hover;
     
+    /// Component that marks an entity as draggable.
+    pub struct Draggable;
+
     /// Marker component to indicate that the
     /// given entity is currently dragged.
     pub struct Drag {
@@ -124,20 +169,25 @@ pub mod interaction {
     
     /// Check if the mouse interacts with interactable entities in the world.
     ///
-    /// * If the mouse hovers over an interactable entity, the `Hover` marker
+    /// If the mouse hovers over an interactable entity, the `Hover` marker
     /// component is inserted. Otherwise the marker component is removed.
+    ///
+    /// To check if the mouse hovers over an entity, the system uses the bounding
+    /// box of the entity relative to its global transform.
     pub fn interaction_system(
         mut commands: Commands,
         // we need the mouse position within the world.
         mw: Res<MouseWorldPos>,
         // query to get all interactable entities.
-        q_interact: Query<(Entity, &Interactable)>
+        q_interact: Query<(Entity, &Interactable, &GlobalTransform)>
     ) {
-        for (entity, interactable) in q_interact.iter() {
-            if mw.x >= interactable.bounding_box.0.x &&
-                mw.x <= interactable.bounding_box.0.x + interactable.bounding_box.1.x &&
-                mw.y >= interactable.bounding_box.0.y &&
-                mw.y <= interactable.bounding_box.0.y + interactable.bounding_box.1.y 
+        for (entity, interactable, transform) in q_interact.iter() {
+            if mw.x >= transform.translation.x + interactable.bounding_box.0.x &&
+                mw.x <= transform.translation.x + interactable.bounding_box.0.x + 
+                    interactable.bounding_box.1.x &&
+                mw.y >= transform.translation.y + interactable.bounding_box.0.y &&
+                mw.y <= transform.translation.y + interactable.bounding_box.0.y + 
+                    interactable.bounding_box.1.y 
             {
                 //eprintln!("hover {:?}", entity);    
                 commands.entity(entity).insert(Hover);
@@ -147,6 +197,60 @@ pub mod interaction {
         }
     }
     
+    /// Select interactable elements.
+    ///
+    /// A left click on an interactable entity will move it into its dedicated group.
+    pub fn selection_system(
+        mut commands: Commands,
+        mw: Res<MouseWorldPos>,
+        mb: Res<Input<MouseButton>>,
+        mut selected: ResMut<Selected>,
+        // query all entities that are selectable and that 
+        // the mouse currently hovers over.
+        q_select: Query<
+            (Entity, &Transform, &Interactable, Option<&Draggable>), 
+            // Filter
+            (With<Selectable>, With<Hover>)
+        >
+    ) {
+        if mb.just_pressed(MouseButton::Left) {
+            let mut e: Option<Entity> = None;
+            let mut greatest: f32 = 0.;
+            let mut group_id: u32 = 0;
+            let mut drag: bool = false;
+            let mut pos: Vec2 = Vec2::new(0., 0.);
+
+            for (entity, transform, interact, draggable) in q_select.iter() {
+                if transform.translation.z > greatest {
+                    greatest = transform.translation.z;
+                    group_id = interact.group;
+                    drag = if let Some(_) = draggable { true } else { false };
+                    pos.x = transform.translation.x;
+                    pos.y = transform.translation.y;
+                    e = Some(entity);
+                }
+            }
+
+            selected.clear();
+
+            if let Some(entity) = e {
+                if drag {
+                    commands.entity(entity).insert(Drag { click_offset: pos - **mw });
+                }
+                selected.entry(group_id).or_insert(Vec::new()).push(entity);
+            }
+        }
+    }
+
+    pub fn drag_system(
+        mw: Res<MouseWorldPos>,
+        mut q_drag: Query<(&mut Transform, &mut Interactable, &Drag), ()>
+    ) {
+        for (mut transform, interact, drag) in q_drag.iter_mut() {
+            transform.translation.x = mw.x + drag.click_offset.x;
+            transform.translation.y = mw.y + drag.click_offset.y;
+        }
+    }
 }
 
 
