@@ -30,8 +30,9 @@ impl Plugin for NodePlugin {
                 propagation_system.system().after(NodeLabels::Transition)
             )
             .add_system(highlight_connector_system.system())
-            .add_system(drag_gate.system())
-            .add_system(drag_connector.system());
+            .add_system(drag_gate_system.system())
+            .add_system(drag_connector_system.system())
+            .add_system(draw_line_system.system());
         
         info!("NodePlugin loaded");
     }
@@ -147,7 +148,8 @@ impl Gate {
             entvec.push(Connector::new(commands, 
                                        Vec3::new(-75., offset + i as f32 * in_step, zidx), 
                                        12., 
-                                       ConnectorType::In));
+                                       ConnectorType::In,
+                                       (i - 1) as usize));
         }
 
         commands.entity(parent).push_children(&entvec);
@@ -157,7 +159,8 @@ impl Gate {
             entvec.push(Connector::new(commands, 
                                        Vec3::new(75., offset + i as f32 * out_step, zidx), 
                                        12., 
-                                       ConnectorType::Out));
+                                       ConnectorType::Out,
+                                       (i - 1) as usize));
         }
         commands.entity(parent).push_children(&entvec);
     }
@@ -240,10 +243,8 @@ fn setup(mut commands: Commands) {
               })]);
 }
 
-fn add_gate(commands: &mut Commands, x: f32, y: f32, width: f32, height: f32) {
-}
 
-fn drag_gate(
+fn drag_gate_system(
     mut commands: Commands,
     mb: Res<Input<MouseButton>>,
     q_dragged: Query<Entity, (With<Drag>, With<Gate>)>
@@ -257,18 +258,25 @@ fn drag_gate(
 
 // ############################# Connector ##############################################
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum ConnectorType {
     In,
-    Out,
+    Out 
 }
 
+/// A connector acts as the interface between two nodes, e.g. a logic gate.
 pub struct Connector {
+    /// The type of the connector.
     ctype: ConnectorType,
+    /// Connection lines connected to this connector.
+    connections: Vec<Entity>,
+    /// Its index in context of a logical node.
+    index: usize,
 }
 
 impl Connector {
     /// Create a new connector for a logic node.
-    pub fn new(commands: &mut Commands, position: Vec3, radius: f32, ctype: ConnectorType) -> Entity {
+    pub fn new(commands: &mut Commands, position: Vec3, radius: f32, ctype: ConnectorType, index: usize) -> Entity {
         let circle = shapes::Circle {
             radius: radius,
             center: Vec2::new(0., 0.),
@@ -286,7 +294,11 @@ impl Connector {
 
         commands
             .spawn_bundle(connector)
-            .insert(Connector { ctype: ctype })
+            .insert(Connector { 
+                ctype,
+                connections: Vec::new(),
+                index
+            })
             .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(radius * 2., radius * 2.), 
                                       CONNECTOR_GROUP))
             .insert(Selectable)
@@ -312,23 +324,68 @@ fn highlight_connector_system(
     }
 }
 
+/// A line shown when the user clicks and drags from a connector.
+/// It's expected that there is atmost one ConnectionLineIndicator
+/// present.
 pub struct ConnectionLineIndicator;
 
-fn drag_connector(
+fn drag_connector_system(
     mut commands: Commands,
     mb: Res<Input<MouseButton>>,
     mw: Res<MouseWorldPos>,
-    q_dragged: Query<(Entity, &GlobalTransform), (With<Drag>, With<Connector>)>,
-    q_conn_line: Query<Entity, With<ConnectionLineIndicator>>
+    // ID and transform of the connector we drag from.
+    q_dragged: Query<(Entity, &GlobalTransform, &Connector), With<Drag>>,
+    // The visual connection line indicator to update.
+    q_conn_line: Query<Entity, With<ConnectionLineIndicator>>,
+    // Posible drop target.
+    q_drop: Query<(Entity, &Connector), With<Hover>>
 ) {
     use bevy_prototype_lyon::entity::ShapeBundle;
 
-    if let Ok((entity, transform)) = q_dragged.single() {
+    if let Ok((entity, transform, connector)) = q_dragged.single() {
         if mb.just_released(MouseButton::Left) {
             commands.entity(entity).remove::<Drag>();
+
+            // We dont need the visual connection line any more.
+            // There will be another system responsible for
+            // drawing the connections between nodes.
             if let Ok(conn_line) = q_conn_line.single() {
                 commands.entity(conn_line).despawn();
+            }
 
+            // Try to connect input and output.
+            if let Ok((drop_target, drop_connector)) = q_drop.single() {
+                // One can only connect an input to an output.
+                if connector.ctype != drop_connector.ctype {
+                    match connector.ctype {
+                        ConnectorType::In => {
+                            ConnectionLine::new(
+                                &mut commands,
+                                ConnInfo {
+                                    entity: drop_target,
+                                    index: drop_connector.index
+                                },
+                                ConnInfo {
+                                    entity: entity,
+                                    index: connector.index
+                                },
+                            );
+                        },
+                        ConnectorType::Out => {
+                            ConnectionLine::new(
+                                &mut commands,
+                                ConnInfo {
+                                    entity: entity,
+                                    index: connector.index
+                                },
+                                ConnInfo {
+                                    entity: drop_target,
+                                    index: drop_connector.index
+                                }
+                            );
+                        }
+                    }
+                }
             }
         } else {
             let conn_entity = if let Ok(conn_line) = q_conn_line.single() {
@@ -356,3 +413,61 @@ fn drag_connector(
     }
 }
 
+// ############################# Connection Line ########################################
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ConnInfo {
+    entity: Entity,
+    index: usize,    
+}
+
+pub struct ConnectionLine {
+    output: ConnInfo,
+    via: Vec<Vec2>,
+    input: ConnInfo,
+}
+
+impl ConnectionLine {
+    pub fn new(commands: &mut Commands, output: ConnInfo, input: ConnInfo) -> Entity {
+        commands
+            .spawn()
+            .insert(ConnectionLine {
+                output,
+                via: Vec::new(),
+                input,
+            }).id()
+    }
+}
+
+fn draw_line_system(
+    mut commands: Commands,
+    q_line: Query<(Entity, &ConnectionLine), ()>,
+    q_transform: Query<&GlobalTransform, ()>,
+) {
+    use bevy_prototype_lyon::entity::ShapeBundle;
+
+    for (entity, conn_line) in q_line.iter() {
+        if let Ok(t_from) = q_transform.get(conn_line.output.entity) {
+            if let Ok(t_to) = q_transform.get(conn_line.input.entity) {
+                // Remove old line
+                commands.entity(entity).remove_bundle::<ShapeBundle>();
+
+                // Insert new line
+                let shape = shapes::Line(Vec2::new(t_from.translation.x, t_from.translation.y), 
+                                         Vec2::new(t_to.translation.x, t_to.translation.y));
+
+                let line = GeometryBuilder::build_as(
+                    &shape,
+                    ShapeColors::outlined(Color::TEAL, Color::BLACK),
+                    DrawMode::Outlined {
+                        fill_options: FillOptions::default(),
+                        outline_options: StrokeOptions::default().with_line_width(10.0),
+                    },
+                    Transform::from_xyz(0., 0., 1.),
+                );
+
+                commands.entity(entity).insert_bundle(line);
+            }
+        }
+   }
+}
