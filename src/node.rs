@@ -16,6 +16,7 @@ impl Plugin for NodePlugin {
         //.add_system(hello_world.system())
         //.add_system(greet_node.system())
         app.add_startup_system(setup.system())
+            .add_event::<ConnectEvent>()
             .add_stage_after(
                 CoreStage::Update,
                 NodeStages::Update,
@@ -31,7 +32,8 @@ impl Plugin for NodePlugin {
             )
             .add_system(highlight_connector_system.system())
             .add_system(drag_gate_system.system())
-            .add_system(drag_connector_system.system())
+            .add_system(drag_connector_system.system().label("drag_conn_system"))
+            .add_system(connect_nodes.system().after("drag_conn_system"))
             .add_system(draw_line_system.system());
         
         info!("NodePlugin loaded");
@@ -268,11 +270,14 @@ pub enum ConnectorType {
 pub struct Connector {
     /// The type of the connector.
     ctype: ConnectorType,
-    /// Connection lines connected to this connector.
-    connections: Vec<Entity>,
     /// Its index in context of a logical node.
     index: usize,
 }
+
+/// Connection lines connected to this connector.
+pub struct Connections(Vec<Entity>);
+
+pub struct Free;
 
 impl Connector {
     /// Create a new connector for a logic node.
@@ -296,9 +301,10 @@ impl Connector {
             .spawn_bundle(connector)
             .insert(Connector { 
                 ctype,
-                connections: Vec::new(),
                 index
             })
+            .insert(Connections(Vec::new()))
+            .insert(Free)
             .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(radius * 2., radius * 2.), 
                                       CONNECTOR_GROUP))
             .insert(Selectable)
@@ -337,8 +343,9 @@ fn drag_connector_system(
     q_dragged: Query<(Entity, &GlobalTransform, &Connector), With<Drag>>,
     // The visual connection line indicator to update.
     q_conn_line: Query<Entity, With<ConnectionLineIndicator>>,
-    // Posible drop target.
-    q_drop: Query<(Entity, &Connector), With<Hover>>
+    // Posible free connector the mouse currently hovers over.
+    q_drop: Query<(Entity, &Connector), (With<Hover>, With<Free>)>,
+    mut ev_connect: EventWriter<ConnectEvent>,
 ) {
     use bevy_prototype_lyon::entity::ShapeBundle;
 
@@ -357,30 +364,25 @@ fn drag_connector_system(
             if let Ok((drop_target, drop_connector)) = q_drop.single() {
                 // One can only connect an input to an output.
                 if connector.ctype != drop_connector.ctype {
+                    // Send connection event.
                     match connector.ctype {
                         ConnectorType::In => {
-                            ConnectionLine::new(
-                                &mut commands,
-                                ConnInfo {
-                                    entity: drop_target,
-                                    index: drop_connector.index
-                                },
-                                ConnInfo {
-                                    entity: entity,
-                                    index: connector.index
-                                },
+                            ev_connect.send( 
+                                ConnectEvent {
+                                    output: drop_target,
+                                    output_index: drop_connector.index,
+                                    input: entity,
+                                    input_index: connector.index
+                                }
                             );
                         },
                         ConnectorType::Out => {
-                            ConnectionLine::new(
-                                &mut commands,
-                                ConnInfo {
-                                    entity: entity,
-                                    index: connector.index
-                                },
-                                ConnInfo {
-                                    entity: drop_target,
-                                    index: drop_connector.index
+                            ev_connect.send(
+                                ConnectEvent {
+                                    output: entity,
+                                    output_index: connector.index,
+                                    input: drop_target,
+                                    input_index: drop_connector.index,
                                 }
                             );
                         }
@@ -409,6 +411,53 @@ fn drag_connector_system(
             );
 
             commands.entity(conn_entity).insert_bundle(line);
+        }
+        
+    }
+}
+
+struct ConnectEvent {
+    output: Entity,
+    output_index: usize,
+    input: Entity,
+    input_index: usize
+}
+
+fn connect_nodes(
+    mut commands: Commands,
+    mut ev_connect: EventReader<ConnectEvent>,
+    mut q_conns: Query<(&Parent, &mut Connections), ()>,
+    mut q_parent: Query<&mut Targets>,
+) {
+    for ev in ev_connect.iter() {
+        eprintln!("connect");
+        let line = ConnectionLine::new(
+            &mut commands,
+            ConnInfo {
+                entity: ev.output,
+                index: ev.output_index            
+            },
+            ConnInfo {
+                entity: ev.input,
+                index: ev.input_index
+            },
+        );
+
+        let input_parent = if let Ok((parent, mut connections)) = q_conns.get_mut(ev.input) {
+            connections.0.push(line);
+            parent.0
+        } else { continue };
+        commands.entity(ev.input).remove::<Free>();
+
+        if let Ok((parent, mut connections)) = q_conns.get_mut(ev.output) {
+            connections.0.push(line);
+
+            if let Ok(mut targets) = q_parent.get_mut(parent.0) {
+                targets.0[ev.output_index]
+                    .entry(input_parent)
+                    .or_insert(Vec::new())
+                    .push(ev.input_index);
+            }
         }
     }
 }
