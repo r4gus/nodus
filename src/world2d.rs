@@ -3,6 +3,7 @@ use bevy::prelude::*;
 pub mod camera2d {
     use bevy::prelude::*;
     use core::ops::{Deref, DerefMut};
+    use bevy::input::mouse::{MouseMotion, MouseWheel};
 
     pub struct Camera2DPlugin;
 
@@ -10,7 +11,8 @@ pub mod camera2d {
         fn build(&self, app: &mut AppBuilder) {
             app.insert_resource(MouseWorldPos(Vec2::new(0., 0.)))
                 .add_startup_system(setup.system())
-                .add_system(cursor_system.system());
+                .add_system(cursor_system.system())
+                .add_system(pan_zoom_camera_system.system());
         }
     }
 
@@ -74,6 +76,51 @@ pub mod camera2d {
             mw.x = pos_wld.x;
             mw.y = pos_wld.y;
         }
+    }
+
+    pub fn pan_zoom_camera_system(
+        wnds: Res<Windows>,
+        mut ev_motion: EventReader<MouseMotion>,
+        mut ev_scroll: EventReader<MouseWheel>,
+        input_mouse: Res<Input<MouseButton>>,
+        input_keyboard: Res<Input<KeyCode>>,
+        mut q_camera: Query<&mut Transform, With<MainCamera>>
+    ) {
+        // change input mapping for panning here.
+        let pan_button = MouseButton::Middle;
+        let pan_button2 = KeyCode::LControl;
+
+        let mut pan = Vec2::ZERO;
+        let mut scroll = 0.0;
+
+        if input_mouse.pressed(pan_button) || input_keyboard.pressed(pan_button2) {
+            for ev in ev_motion.iter() {
+                pan += ev.delta;
+            }
+        }
+
+        for ev in ev_scroll.iter() {
+            scroll += ev.y;
+        }
+
+        // assuming there is exacly one main camera entity, so this is ok.
+        if let Ok(mut transform) = q_camera.single_mut() {
+            
+            if pan.length_squared() > 0.0 {
+                let scale = transform.scale.x;
+                transform.translation.x -= pan.x * scale;
+                transform.translation.y += pan.y * scale;
+            } else if scroll.abs() > 0.0 {
+                let scale = (transform.scale.x - scroll).clamp(1.0, 10.0);
+                transform.scale = Vec3::new(scale, scale, scale);
+            }
+        }
+    }
+
+    fn get_primary_window_size(windows: &Res<Windows>) -> Vec2 {
+        let window = windows.get_primary().unwrap();
+        let window = Vec2::new(window.width() as f32, window.height() as f32);
+        window
     }
 }
 

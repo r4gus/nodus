@@ -90,7 +90,35 @@ pub struct Gate {
     pub out_range: NodeRange,
 }
 
+const GATE_SIZE: f32 = 100.;
+
+struct GateSize {
+    width: f32,
+    height: f32,
+    in_step: f32,
+    out_step: f32,
+    offset: f32,
+}
+
 impl Gate {
+
+    fn get_distances(factor: f32, cin: f32, cout: f32) -> GateSize {
+        let width = GATE_SIZE;
+        let height = GATE_SIZE + if factor > 2. {
+            (factor - 1.) * GATE_SIZE / 2.
+        } else { 0. };
+        let in_step = -(height / (cin + 1.));
+        let out_step = -(height / (cout + 1.));
+        let offset = height / 2.;
+
+        GateSize {
+            width,
+            height,
+            in_step,
+            out_step,
+            offset
+        }
+    }
 
     pub fn new(
         commands: &mut Commands, 
@@ -101,21 +129,14 @@ impl Gate {
         functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>
     ) {
         static Z_INDEX: AtomicI32 = AtomicI32::new(1);
-        const GATE_SIZE: f32 = 100.;
         
         let factor = if in_range.min >= out_range.min { in_range.min } else { out_range.min };
-        let width = GATE_SIZE;
-        let height = GATE_SIZE + if factor > 2 {
-            (factor - 1) as f32 * GATE_SIZE / 2.
-        } else { 0. };
-        let in_step = -(height / (in_range.min as f32 + 1.));
-        let out_step = -(height / (out_range.min as f32 + 1.));
-        let offset = height / 2.;
+        let dists = Gate::get_distances(factor as f32, in_range.min as f32, out_range.min as f32);
 
         let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
         let shape = shapes::Rectangle {
-            width,
-            height,
+            width: dists.width,
+            height: dists.height,
             ..shapes::Rectangle::default()
         };
         let gate = GeometryBuilder::build_as(
@@ -140,7 +161,7 @@ impl Gate {
             .insert(Outputs(vec![State::None; out_range.min as usize]))
             .insert(Transitions(functions))
             .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
-            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(width, height), NODE_GROUP))
+            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(dists.width, dists.height), NODE_GROUP))
             .insert(Selectable)
             .insert(Draggable { update: true })
             .id();
@@ -148,7 +169,7 @@ impl Gate {
         let mut entvec: Vec<Entity> = Vec::new();
         for i in 1..=in_range.min {
             entvec.push(Connector::new(commands, 
-                                       Vec3::new(-75., offset + i as f32 * in_step, zidx), 
+                                       Vec3::new(-75., dists.offset + i as f32 * dists.in_step, zidx), 
                                        12., 
                                        ConnectorType::In,
                                        (i - 1) as usize));
@@ -159,7 +180,7 @@ impl Gate {
 
         for i in 1..=out_range.min {
             entvec.push(Connector::new(commands, 
-                                       Vec3::new(75., offset + i as f32 * out_step, zidx), 
+                                       Vec3::new(75., dists.offset + i as f32 * dists.out_step, zidx), 
                                        12., 
                                        ConnectorType::Out,
                                        (i - 1) as usize));
@@ -213,26 +234,36 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
     }
 }
 
+macro_rules! trans {
+    ( $( $fun:expr ),* ) => {
+        vec![ $( Box::new($fun) ),* ]
+    };
+    ( $( $fun:expr ),+ ,) => {
+        trans![ $( $fun ),* ]
+    };
+}
+
 fn setup(mut commands: Commands) {
     Gate::new(&mut commands, 
               "NOT Gate".to_string(), 
               0., 0., 
               NodeRange { min: 1, max: 1 },
               NodeRange { min: 1, max: 1 },
-              vec![Box::new(|inputs| {
-                    match inputs[0] {
-                        State::None => State::None,
-                        State::Low => State::High,
-                        State::High => State::Low,
-                    }
-              })]);
+              trans![|inputs| {
+                match inputs[0] {
+                    State::None => State::None,
+                    State::Low => State::High,
+                    State::High => State::Low,
+                }
+              },]
+              );
 
     Gate::new(&mut commands, 
               "AND Gate".to_string(), 
               250., 0., 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
-              vec![Box::new(|inputs| {
+              trans![|inputs| {
                   let mut ret = State::High;
                   for i in inputs {
                     match i {
@@ -242,7 +273,8 @@ fn setup(mut commands: Commands) {
                     }
                   }
                   ret
-              })]);
+              },]
+            );
 }
 
 
@@ -340,7 +372,7 @@ fn drag_connector_system(
     mb: Res<Input<MouseButton>>,
     mw: Res<MouseWorldPos>,
     // ID and transform of the connector we drag from.
-    q_dragged: Query<(Entity, &GlobalTransform, &Connector), With<Drag>>,
+    q_dragged: Query<(Entity, &GlobalTransform, &Connector), (With<Drag>, With<Free>)>,
     // The visual connection line indicator to update.
     q_conn_line: Query<Entity, With<ConnectionLineIndicator>>,
     // Posible free connector the mouse currently hovers over.
@@ -350,6 +382,7 @@ fn drag_connector_system(
     use bevy_prototype_lyon::entity::ShapeBundle;
 
     if let Ok((entity, transform, connector)) = q_dragged.single() {
+        // If the LMB is released we check if we can connect two connectors.
         if mb.just_released(MouseButton::Left) {
             commands.entity(entity).remove::<Drag>();
 
@@ -390,6 +423,8 @@ fn drag_connector_system(
                 }
             }
         } else {
+        // While LMB is being pressed, draw the line from the node clicked on
+        // to the mouse cursor.
             let conn_entity = if let Ok(conn_line) = q_conn_line.single() {
                 commands.entity(conn_line).remove_bundle::<ShapeBundle>();
                 conn_line
@@ -423,6 +458,7 @@ struct ConnectEvent {
     input_index: usize
 }
 
+/// Handle incomming connection events.
 fn connect_nodes(
     mut commands: Commands,
     mut ev_connect: EventReader<ConnectEvent>,
@@ -491,13 +527,25 @@ impl ConnectionLine {
 fn draw_line_system(
     mut commands: Commands,
     q_line: Query<(Entity, &ConnectionLine), ()>,
-    q_transform: Query<&GlobalTransform, ()>,
+    q_transform: Query<(&Parent, &Connector, &GlobalTransform), ()>,
+    q_outputs: Query<&Outputs, ()>,
 ) {
     use bevy_prototype_lyon::entity::ShapeBundle;
 
     for (entity, conn_line) in q_line.iter() {
-        if let Ok(t_from) = q_transform.get(conn_line.output.entity) {
-            if let Ok(t_to) = q_transform.get(conn_line.input.entity) {
+        if let Ok((t_parent, t_conn, t_from)) = q_transform.get(conn_line.output.entity) {
+            // Set connection line color based on the value of the output.
+            let color = if let Ok(outputs) = q_outputs.get(t_parent.0) {
+                match outputs.0[t_conn.index] {
+                    State::None => Color::RED,
+                    State::High => Color::BLUE,
+                    State::Low => Color::BLACK,
+                }
+            } else {
+                Color::BLACK
+            };
+
+            if let Ok((_, _, t_to)) = q_transform.get(conn_line.input.entity) {
                 // Remove old line
                 commands.entity(entity).remove_bundle::<ShapeBundle>();
 
@@ -507,7 +555,7 @@ fn draw_line_system(
 
                 let line = GeometryBuilder::build_as(
                     &shape,
-                    ShapeColors::outlined(Color::TEAL, Color::BLACK),
+                    ShapeColors::outlined(Color::TEAL, color),
                     DrawMode::Outlined {
                         fill_options: FillOptions::default(),
                         outline_options: StrokeOptions::default().with_line_width(10.0),
