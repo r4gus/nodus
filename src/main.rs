@@ -1,11 +1,7 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
-use bevy_interact_2d::{
-    InteractionPlugin,
-    InteractionSource,
-    drag::{DragPlugin},
-    Group
-};
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 mod node;
 
@@ -29,11 +25,21 @@ fn main() {
         })
         .add_startup_system(setup.system())
         .add_plugins(DefaultPlugins)
+        .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(EguiPlugin)
         .add_plugin(ShapePlugin) // immegiate 2d drawing
         .add_plugin(NodePlugin)
         .add_plugin(Camera2DPlugin)
         .add_plugin(Interaction2DPlugin)
+        .add_system(ui_example.system())
         .run();
+}
+
+fn ui_example(egui_context: ResMut<EguiContext>) {
+    egui::Window::new("Fuck you").show(egui_context.ctx(), |ui| {
+        ui.label("world");
+    });
 }
 
 pub struct GuiFonts {

@@ -10,6 +10,15 @@ pub struct NodePlugin;
 const NODE_GROUP: u32 = 1;
 const CONNECTOR_GROUP: u32 = 2;
 
+macro_rules! trans {
+    ( $( $fun:expr ),* ) => {
+        vec![ $( Box::new($fun) ),* ]
+    };
+    ( $( $fun:expr ),+ ,) => {
+        trans![ $( $fun ),* ]
+    };
+}
+
 impl Plugin for NodePlugin {
     fn build(&self, app: &mut AppBuilder) {
         // add things to the app here
@@ -17,19 +26,8 @@ impl Plugin for NodePlugin {
         //.add_system(greet_node.system())
         app.add_startup_system(setup.system())
             .add_event::<ConnectEvent>()
-            .add_stage_after(
-                CoreStage::Update,
-                NodeStages::Update,
-                SystemStage::parallel(),
-            )
-            .add_system_to_stage(
-                NodeStages::Update,
-                transition_system.system().label(NodeLabels::Transition)
-            )
-            .add_system_to_stage(
-                NodeStages::Update,
-                propagation_system.system().after(NodeLabels::Transition)
-            )
+            .add_system(transition_system.system().label("transition"))
+            .add_system(propagation_system.system().after("transition"))
             .add_system(highlight_connector_system.system())
             .add_system(drag_gate_system.system())
             .add_system(drag_connector_system.system().label("drag_conn_system"))
@@ -100,6 +98,8 @@ struct GateSize {
     offset: f32,
 }
 
+static Z_INDEX: AtomicI32 = AtomicI32::new(1);
+
 impl Gate {
 
     fn get_distances(factor: f32, cin: f32, cout: f32) -> GateSize {
@@ -127,9 +127,7 @@ impl Gate {
         in_range: NodeRange, 
         out_range: NodeRange,
         functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>
-    ) {
-        static Z_INDEX: AtomicI32 = AtomicI32::new(1);
-        
+    ) { 
         let factor = if in_range.min >= out_range.min { in_range.min } else { out_range.min };
         let dists = Gate::get_distances(factor as f32, in_range.min as f32, out_range.min as f32);
 
@@ -187,6 +185,56 @@ impl Gate {
         }
         commands.entity(parent).push_children(&entvec);
     }
+
+    pub fn constant(
+        commands: &mut Commands, 
+        name: String,
+        x: f32, y: f32,
+        state: State,
+    ) {
+        let dists = Gate::get_distances(1., 1., 1.);
+
+        let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
+        let shape = shapes::Rectangle {
+            width: dists.width,
+            height: dists.height,
+            ..shapes::Rectangle::default()
+        };
+        let gate = GeometryBuilder::build_as(
+            &shape,
+            ShapeColors::outlined(Color::TEAL, Color::BLACK),
+            DrawMode::Outlined {
+                fill_options: FillOptions::default(),
+                outline_options: StrokeOptions::default().with_line_width(10.0),
+            },
+            Transform::from_xyz(x, y, zidx),
+        );
+        let parent = commands
+            .spawn_bundle(gate)
+            .insert(Gate { 
+                inputs: 1,
+                outputs: 1,
+                in_range: NodeRange { min: 1, max: 1 },
+                out_range: NodeRange { min: 1, max: 1 },
+            })
+            .insert(Name(name))
+            .insert(Inputs(vec![state]))
+            .insert(Outputs(vec![State::None]))
+            .insert(Transitions(trans![|inputs| inputs[0]]))
+            .insert(Targets(vec![HashMap::new()]))
+            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(dists.width, dists.height), NODE_GROUP))
+            .insert(Selectable)
+            .insert(Draggable { update: true })
+            .id();
+        
+        let mut entvec: Vec<Entity> = Vec::new();
+        entvec.push(Connector::new(commands, 
+                                   Vec3::new(75., dists.offset + dists.out_step, zidx), 
+                                   12., 
+                                   ConnectorType::Out,
+                                   0));
+        commands.entity(parent).push_children(&entvec);
+    }
 }
 
 /// Input values of a logical node, e.g. a gate.
@@ -234,14 +282,6 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
     }
 }
 
-macro_rules! trans {
-    ( $( $fun:expr ),* ) => {
-        vec![ $( Box::new($fun) ),* ]
-    };
-    ( $( $fun:expr ),+ ,) => {
-        trans![ $( $fun ),* ]
-    };
-}
 
 fn setup(mut commands: Commands) {
     Gate::new(&mut commands, 
@@ -275,6 +315,34 @@ fn setup(mut commands: Commands) {
                   ret
               },]
             );
+
+    Gate::new(&mut commands, 
+              "OR Gate".to_string(), 
+              500., 0., 
+              NodeRange { min: 2, max: 16 },
+              NodeRange { min: 1, max: 1 },
+              trans![|inputs| {
+                  let mut ret = State::Low;
+                  for i in inputs {
+                    match i {
+                        State::None => { ret = State::None; },
+                        State::Low => {  },
+                        State::High => { ret = State::High; break; },
+                    }
+                  }
+                  ret
+              },]
+            );
+
+    Gate::constant(&mut commands,
+                   "HIGH Const".to_string(),
+                   -200., 200.,
+                   State::High);
+
+    Gate::constant(&mut commands,
+                   "LOW Const".to_string(),
+                   -200., -200.,
+                   State::Low);
 }
 
 
@@ -464,6 +532,7 @@ fn connect_nodes(
     mut ev_connect: EventReader<ConnectEvent>,
     mut q_conns: Query<(&Parent, &mut Connections), ()>,
     mut q_parent: Query<&mut Targets>,
+    q_transform: Query<&GlobalTransform, ()>,
 ) {
     for ev in ev_connect.iter() {
         eprintln!("connect");
@@ -477,6 +546,7 @@ fn connect_nodes(
                 entity: ev.input,
                 index: ev.input_index
             },
+            (q_transform.get(ev.output).unwrap().translation, q_transform.get(ev.input).unwrap().translation),
         );
 
         let input_parent = if let Ok((parent, mut connections)) = q_conns.get_mut(ev.input) {
@@ -513,14 +583,36 @@ pub struct ConnectionLine {
 }
 
 impl ConnectionLine {
-    pub fn new(commands: &mut Commands, output: ConnInfo, input: ConnInfo) -> Entity {
+    pub fn new(commands: &mut Commands, output: ConnInfo, input: ConnInfo, positions: (Vec3, Vec3)) -> Entity {
         commands
             .spawn()
             .insert(ConnectionLine {
                 output,
-                via: Vec::new(),
+                via: ConnectionLine::calculate_nodes(positions.0.x, positions.0.y, positions.1.x, positions.1.y),
                 input,
             }).id()
+    }
+
+    /// Calculate the nodes of a path between two points.
+    pub fn calculate_nodes(x1: f32, y1: f32, x2: f32, y2: f32) -> Vec<Vec2> {
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+        let dx2 = dx / 2.;
+        let dy2 = dy / 2.;
+        let point1 = Vec2::new(x1, y1);
+        let point2 = if dx >= 0. {
+            Vec2::new(x1 + dx2, y1)
+        } else {
+            Vec2::new(x1, y1 + dy2)
+        };
+        let point3 = if dx >= 0. {
+            Vec2::new(x1 + dx2, y1 + dy)
+        } else {
+            Vec2::new(x1 + dx, y1 + dy2)
+        };
+        let point4 = Vec2::new(x1 + dx, y1 + dy);
+
+        vec![point1, point2, point3, point4]
     }
 }
 
@@ -529,6 +621,7 @@ fn draw_line_system(
     q_line: Query<(Entity, &ConnectionLine), ()>,
     q_transform: Query<(&Parent, &Connector, &GlobalTransform), ()>,
     q_outputs: Query<&Outputs, ()>,
+    q_children: Query<&Children>,
 ) {
     use bevy_prototype_lyon::entity::ShapeBundle;
 
@@ -547,23 +640,48 @@ fn draw_line_system(
 
             if let Ok((_, _, t_to)) = q_transform.get(conn_line.input.entity) {
                 // Remove old line
-                commands.entity(entity).remove_bundle::<ShapeBundle>();
+                if let Ok(children) = q_children.get(entity) {
+                    for &child in children.iter() {
+                        commands.entity(child).despawn();
+                    }
+                }
+                let via = ConnectionLine::calculate_nodes(t_from.translation.x, t_from.translation.y, t_to.translation.x, t_to.translation.y);
+                let mut segments: Vec<Entity> = Vec::new();
+                for i in 0..(via.len() - 1) {
+                    // Insert new line
+                    let shape = shapes::Line(Vec2::new(via[i].x, via[i].y), 
+                                             Vec2::new(via[i+1].x, via[i+1].y));
 
-                // Insert new line
-                let shape = shapes::Line(Vec2::new(t_from.translation.x, t_from.translation.y), 
-                                         Vec2::new(t_to.translation.x, t_to.translation.y));
+                    let line = GeometryBuilder::build_as(
+                        &shape,
+                        ShapeColors::outlined(Color::TEAL, color),
+                        DrawMode::Outlined {
+                            fill_options: FillOptions::default(),
+                            outline_options: StrokeOptions::default().with_line_width(10.0),
+                        },
+                        Transform::from_xyz(0., 0., 1.),
+                    );
+                    
+                    segments.push(commands.spawn_bundle(line).id());
 
-                let line = GeometryBuilder::build_as(
-                    &shape,
-                    ShapeColors::outlined(Color::TEAL, color),
-                    DrawMode::Outlined {
-                        fill_options: FillOptions::default(),
-                        outline_options: StrokeOptions::default().with_line_width(10.0),
-                    },
-                    Transform::from_xyz(0., 0., 1.),
-                );
+                    // This hides the edges between two lines.
+                    if i > 0 {
+                        let circ_shape = shapes::Circle { radius: 4.0, center: Vec2::new(via[i].x, via[i].y) };
 
-                commands.entity(entity).insert_bundle(line);
+                        let circle = GeometryBuilder::build_as(
+                            &circ_shape,
+                            ShapeColors::outlined(color, color),
+                            DrawMode::Outlined {
+                                fill_options: FillOptions::default(),
+                                outline_options: StrokeOptions::default(),
+                            },
+                            Transform::from_xyz(0., 0., 1.),
+                        );
+                        segments.push(commands.spawn_bundle(circle).id());
+                    }
+                }
+
+                commands.entity(entity).push_children(&segments);
             }
         }
    }
