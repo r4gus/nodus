@@ -881,14 +881,16 @@ fn change_input_system(
             // If the expected amount of connectors exceeds the factual
             // amount, add new connectors to the gate.
             let mut entvec: Vec<Entity> = Vec::new();
-            for i in (max + 1)..=ev.to as usize {
+            for i in (max + 2)..=ev.to as usize {
                 entvec.push(Connector::new(&mut commands, 
                            Vec3::new(-75., dists.offset + i as f32 * dists.in_step, translation.z), 
                            12., 
                            ConnectorType::In,
                            (i - 1) as usize));
             }
-            commands.entity(ev.gate).push_children(&entvec);
+            if !entvec.is_empty() {
+                commands.entity(ev.gate).push_children(&entvec);
+            }
         }
         
     }
