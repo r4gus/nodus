@@ -134,31 +134,16 @@ pub mod interaction2d {
 
     impl Plugin for Interaction2DPlugin {
         fn build(&self, app: &mut AppBuilder) {
-            app.insert_resource(Selected(HashMap::new()))
-                .add_system(interaction_system.system().label("interaction"))
+            app.add_system(interaction_system.system().label("interaction"))
                 .add_system(selection_system.system().after("interaction"))
                 .add_system(drag_system.system());
         }
     }
     
-    /// Resource that holds all selected entities.
+    /// Marker component for selected entities.
     #[derive(Debug)]
-    pub struct Selected(pub HashMap<u32, Vec<Entity>>);
+    pub struct Selected;
 
-    impl Deref for Selected {
-        type Target = HashMap<u32, Vec<Entity>>;
-
-        fn deref(&self) -> &Self::Target {
-            &self.0
-        }
-    }
-
-    impl DerefMut for Selected {
-        fn deref_mut(&mut self) -> &mut Self::Target {
-            &mut self.0
-        }
-    }
-    
     /// Component that marks an entity as selectable.
     pub struct Selectable;
     
@@ -189,6 +174,11 @@ pub mod interaction2d {
                                position.y - dimensions.y / 2.), dimensions),
                 group
             }
+        }
+
+        pub fn update_size(&mut self, x: f32, y: f32, width: f32, height: f32) {
+            self.bounding_box.0 = Vec2::new(x - width / 2., y - height / 2.);
+            self.bounding_box.1 = Vec2::new(width, height); 
         }
         
         /// Update the position of the bounding box within the world.
@@ -256,14 +246,14 @@ pub mod interaction2d {
         mut commands: Commands,
         mw: Res<MouseWorldPos>,
         mb: Res<Input<MouseButton>>,
-        mut selected: ResMut<Selected>,
         // query all entities that are selectable and that 
         // the mouse currently hovers over.
         q_select: Query<
             (Entity, &Transform, &Interactable, Option<&Draggable>), 
             // Filter
             (With<Selectable>, With<Hover>)
-        >
+        >,
+        q_selected: Query<Entity, With<Selected>>,
     ) {
         if mb.just_pressed(MouseButton::Left) {
             let mut e: Option<Entity> = None;
@@ -283,14 +273,15 @@ pub mod interaction2d {
                 }
             }
             
-            // Clear table so information are only availabe for one tick.
-            selected.clear();
-
             if let Some(entity) = e {
+                for entity in q_selected.iter() {
+                    commands.entity(entity).remove::<Selected>();
+                }
+
                 if drag {
                     commands.entity(entity).insert(Drag { click_offset: pos - **mw });
                 }
-                selected.entry(group_id).or_insert(Vec::new()).push(entity);
+                commands.entity(entity).insert(Selected);
             }
         }
     }

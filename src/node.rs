@@ -3,7 +3,8 @@ use bevy_prototype_lyon::prelude::*;
 use std::collections::HashMap;
 use nodus::world2d::interaction2d::*;
 use std::sync::atomic::{AtomicI32, Ordering};
- use nodus::world2d::camera2d::MouseWorldPos;
+use nodus::world2d::camera2d::MouseWorldPos;
+use bevy_egui::{egui, EguiContext};
 
 pub struct NodePlugin;
 
@@ -26,13 +27,18 @@ impl Plugin for NodePlugin {
         //.add_system(greet_node.system())
         app.add_startup_system(setup.system())
             .add_event::<ConnectEvent>()
+            .add_event::<ChangeInput>()
+            .add_event::<DisconnectEvent>()
             .add_system(transition_system.system().label("transition"))
             .add_system(propagation_system.system().after("transition"))
             .add_system(highlight_connector_system.system())
             .add_system(drag_gate_system.system())
             .add_system(drag_connector_system.system().label("drag_conn_system"))
             .add_system(connect_nodes.system().after("drag_conn_system"))
-            .add_system(draw_line_system.system());
+            .add_system(draw_line_system.system())
+            .add_system(ui_node_info_system.system())
+            .add_system(change_input_system.system())
+            .add_system(disconnect_event.system());
         
         info!("NodePlugin loaded");
     }
@@ -102,7 +108,8 @@ static Z_INDEX: AtomicI32 = AtomicI32::new(1);
 
 impl Gate {
 
-    fn get_distances(factor: f32, cin: f32, cout: f32) -> GateSize {
+    fn get_distances(cin: f32, cout: f32) -> GateSize {
+        let factor = if cin >= cout { cin } else { cout };
         let width = GATE_SIZE;
         let height = GATE_SIZE + if factor > 2. {
             (factor - 1.) * GATE_SIZE / 2.
@@ -128,8 +135,7 @@ impl Gate {
         out_range: NodeRange,
         functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>
     ) { 
-        let factor = if in_range.min >= out_range.min { in_range.min } else { out_range.min };
-        let dists = Gate::get_distances(factor as f32, in_range.min as f32, out_range.min as f32);
+        let dists = Gate::get_distances(in_range.min as f32, out_range.min as f32);
 
         let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
         let shape = shapes::Rectangle {
@@ -192,7 +198,7 @@ impl Gate {
         x: f32, y: f32,
         state: State,
     ) {
-        let dists = Gate::get_distances(1., 1., 1.);
+        let dists = Gate::get_distances(1., 1.);
 
         let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
         let shape = shapes::Rectangle {
@@ -271,8 +277,10 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
         for i in 0..outputs.0.len() {
             for (entity, idxvec) in &targets.0[i] {
                 if let Ok(mut inputs) = to_query.get_component_mut::<Inputs>(*entity) {
-                    for j in idxvec {
-                        inputs.0[*j] = outputs.0[i];
+                    for &j in idxvec {
+                        if j < inputs.0.len() {
+                            inputs.0[j] = outputs.0[i];
+                        }
                     }
                 } else {
                     error!("Could not query inputs of given entity ");
@@ -568,6 +576,71 @@ fn connect_nodes(
     }
 }
 
+struct DisconnectEvent {
+    connection: Entity,
+    in_parent: Option<Entity>,
+}
+
+fn disconnect_event(
+    mut commands: Commands,
+    mut ev_disconnect: EventReader<DisconnectEvent>,
+    mut q_line: Query<(&Children, &ConnectionLine)>,
+    mut q_conn: Query<(&Parent, Entity, &mut Connections)>,
+    mut q_parent: Query<&mut Targets>,
+) {
+    for ev in ev_disconnect.iter() {
+        eprintln!("disconnect");
+        if let Ok((children, line)) = q_line.get(ev.connection) {
+            let mut in_parent: Option<Entity> = None;
+
+            // Unlink input connector (right hand side)
+            if let Ok((parent_in, entity_in, mut connections_in)) = q_conn.get_mut(line.input.entity) {
+                in_parent = Some(parent_in.0);
+
+                // Clear the input line from the vector and
+                // mark the connector as free.
+                connections_in.0.clear(); 
+                commands.entity(entity_in).insert(Free);
+            } else {
+                in_parent = ev.in_parent;
+            }
+
+            // Unlink output connector (left hand side)
+            if let Ok((parent_out, entity_out, mut connections_out)) = q_conn.get_mut(line.output.entity) {
+                let parent = in_parent.expect("There should always bee a parent set");
+                
+                // Find and remove the given connection line.
+                if let Some(idx) = connections_out.0.iter().position(|x| *x == ev.connection) {
+                    connections_out.0.remove(idx); 
+                }
+
+                // Unlink propagation target.
+                // Find the index of the input connector within the
+                // target map of the gate the output connector belongs
+                // to and remove the associated entry.
+                if let Ok(mut targets) = q_parent.get_mut(parent_out.0) {
+                    if let Some(index) = targets.0[line.output.index]
+                                    .get_mut(&parent).expect("Should have associated entry")
+                                    .iter().position(|x| *x == line.input.index)
+                    {
+                        eprintln!("romove");
+                        targets.0[line.output.index]
+                            .get_mut(&parent).expect("Should have associated entry")
+                            .remove(index);
+                    }
+                }
+            }
+
+            for &child in children.iter() {
+                commands.entity(child).despawn_recursive();
+            }
+            
+            // Finally remove the connection line itself.
+            commands.entity(ev.connection).despawn();
+        }
+    }
+}
+
 // ############################# Connection Line ########################################
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -685,4 +758,138 @@ fn draw_line_system(
             }
         }
    }
+}
+
+// ############################# User Interface #########################################
+
+struct ChangeInput {
+    gate: Entity,
+    to: u32,
+}
+
+fn ui_node_info_system(
+    egui_context: ResMut<EguiContext>,
+    q_gate: Query<(Entity, &Name, &Gate), With<Selected>>,
+    mut ev_change: EventWriter<ChangeInput>,
+) {
+    for (entity, name, gate) in q_gate.iter() {
+        egui::Window::new(&name.0).show(egui_context.ctx(), |ui| {
+            if gate.in_range.min != gate.in_range.max {
+                ui.horizontal(|ui| {
+                    ui.label("Input Count: ");
+                    if ui.button("➖").clicked() {
+                        if gate.inputs > gate.in_range.min {
+                            ev_change.send(
+                                ChangeInput {
+                                    gate: entity,
+                                    to: gate.inputs - 1,
+                                }
+                            );
+                        }
+                    }
+                    ui.label(format!("{}", gate.inputs));
+                    if ui.button("➕").clicked() {
+                        if gate.inputs < gate.in_range.max {
+                            ev_change.send(
+                                ChangeInput {
+                                    gate: entity,
+                                    to: gate.inputs + 1,
+                                }
+                            );
+                        }
+                    }
+                });
+            }
+        });
+    }
+}
+
+fn change_input_system(
+    mut commands: Commands,
+    mut ev_connect: EventReader<ChangeInput>,
+    mut ev_disconnect: EventWriter<DisconnectEvent>,
+    mut q_gate: Query<(Entity, &mut Gate, &mut Inputs, &mut Interactable, &GlobalTransform)>,
+    mut q_connectors: Query<&Children>,
+    mut q_connector: Query<(&mut Connector, &mut Transform, &Connections)>,
+) {
+    use bevy_prototype_lyon::entity::ShapeBundle;
+
+    for ev in ev_connect.iter() {
+        if let Ok((gent, mut gate, mut inputs, mut interact, transform)) = q_gate.get_mut(ev.gate) {
+            // Update input count
+            gate.inputs = ev.to;
+
+            let translation = transform.translation;
+            let dists = Gate::get_distances(gate.inputs as f32, gate.outputs as f32);
+
+            // Update bounding box
+            interact.update_size(0., 0., dists.width, dists.height);
+
+            // Update input vector
+            inputs.0.resize(gate.inputs as usize, State::None);
+
+            let shape = shapes::Rectangle {
+                width: dists.width,
+                height: dists.height,
+                ..shapes::Rectangle::default()
+            };
+            let gate = GeometryBuilder::build_as(
+                &shape,
+                ShapeColors::outlined(Color::TEAL, Color::BLACK),
+                DrawMode::Outlined {
+                    fill_options: FillOptions::default(),
+                    outline_options: StrokeOptions::default().with_line_width(10.0),
+                },
+                Transform::from_xyz(translation.x, translation.y, translation.z),
+            );
+            
+            // Update body
+            commands.entity(ev.gate).remove_bundle::<ShapeBundle>();
+            commands.entity(ev.gate).insert_bundle(gate);
+
+            // Update connectors attached to this gate
+            let mut max = 0;
+            if let Ok(connectors) = q_connectors.get(ev.gate) {
+                for connector in connectors.iter() {
+                    if let Ok((conn, mut trans, conns)) = q_connector.get_mut(*connector) {
+                        if conn.ctype == ConnectorType::In {
+                            if conn.index < ev.to as usize {
+                                trans.translation = Vec3::new(-75., 
+                                    dists.offset + (conn.index + 1) as f32 * dists.in_step, 
+                                    translation.z); 
+                                if max < conn.index { max = conn.index; }
+                            } else {
+                                // Remove connector if neccessary. This includes logical
+                                // links between gates and connection line entities.
+                                for &c in &conns.0 {
+                                    ev_disconnect.send(
+                                        DisconnectEvent {
+                                            connection: c,
+                                            in_parent: Some(gent),
+                                        }
+                                    );
+                                }
+
+                                // Finally remove entity.
+                                commands.entity(*connector).despawn();
+                            }
+                        }
+                    }
+                }
+            }
+       
+            // If the expected amount of connectors exceeds the factual
+            // amount, add new connectors to the gate.
+            let mut entvec: Vec<Entity> = Vec::new();
+            for i in (max + 1)..=ev.to as usize {
+                entvec.push(Connector::new(&mut commands, 
+                           Vec3::new(-75., dists.offset + i as f32 * dists.in_step, translation.z), 
+                           12., 
+                           ConnectorType::In,
+                           (i - 1) as usize));
+            }
+            commands.entity(ev.gate).push_children(&entvec);
+        }
+        
+    }
 }

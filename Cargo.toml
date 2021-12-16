@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version = "0.5", features = ["dynamic"] }
+bevy = { version = "0.5", features = ["dynamic", "wayland"] }
 bevy_prototype_lyon = "0.3"
 bevy_egui = "0.8"
 
@@ -19,5 +19,5 @@ opt-level = 3
 
 # Maybe also enable only a small amount of optimization for our code:
 [profile.dev]
-opt-level = 1
+opt-level = 3
 

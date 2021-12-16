@@ -32,14 +32,7 @@ fn main() {
         .add_plugin(NodePlugin)
         .add_plugin(Camera2DPlugin)
         .add_plugin(Interaction2DPlugin)
-        .add_system(ui_example.system())
         .run();
-}
-
-fn ui_example(egui_context: ResMut<EguiContext>) {
-    egui::Window::new("Fuck you").show(egui_context.ctx(), |ui| {
-        ui.label("world");
-    });
 }
 
 pub struct GuiFonts {
