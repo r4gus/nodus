@@ -5,6 +5,7 @@ use nodus::world2d::interaction2d::*;
 use std::sync::atomic::{AtomicI32, Ordering};
 use nodus::world2d::camera2d::MouseWorldPos;
 use bevy_egui::{egui, EguiContext};
+use bevy_prototype_lyon::entity::ShapeBundle;
 
 pub struct NodePlugin;
 
@@ -127,6 +128,24 @@ impl Gate {
         }
     }
 
+    pub fn new_body(x: f32, y: f32, z: f32, width: f32, height: f32) -> ShapeBundle {
+        let shape = shapes::Rectangle {
+            width,
+            height,
+            ..shapes::Rectangle::default()
+        };
+
+        GeometryBuilder::build_as(
+            &shape,
+            ShapeColors::outlined(Color::TEAL, Color::BLACK),
+            DrawMode::Outlined {
+                fill_options: FillOptions::default(),
+                outline_options: StrokeOptions::default().with_line_width(10.0),
+            },
+            Transform::from_xyz(x, y, z),
+        )
+    }
+
     pub fn new(
         commands: &mut Commands, 
         name: String,
@@ -138,20 +157,8 @@ impl Gate {
         let dists = Gate::get_distances(in_range.min as f32, out_range.min as f32);
 
         let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
-        let shape = shapes::Rectangle {
-            width: dists.width,
-            height: dists.height,
-            ..shapes::Rectangle::default()
-        };
-        let gate = GeometryBuilder::build_as(
-            &shape,
-            ShapeColors::outlined(Color::TEAL, Color::BLACK),
-            DrawMode::Outlined {
-                fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default().with_line_width(10.0),
-            },
-            Transform::from_xyz(x, y, zidx),
-        );
+
+        let gate = Gate::new_body(x, y, zidx, dists.width, dists.height);
         let parent = commands
             .spawn_bundle(gate)
             .insert(Gate { 
@@ -466,7 +473,7 @@ fn drag_connector_system(
             // There will be another system responsible for
             // drawing the connections between nodes.
             if let Ok(conn_line) = q_conn_line.single() {
-                commands.entity(conn_line).despawn();
+                commands.entity(conn_line).despawn_recursive();
             }
 
             // Try to connect input and output.
@@ -636,7 +643,7 @@ fn disconnect_event(
             }
             
             // Finally remove the connection line itself.
-            commands.entity(ev.connection).despawn();
+            commands.entity(ev.connection).despawn_recursive();
         }
     }
 }
@@ -714,8 +721,9 @@ fn draw_line_system(
             if let Ok((_, _, t_to)) = q_transform.get(conn_line.input.entity) {
                 // Remove old line
                 if let Ok(children) = q_children.get(entity) {
+                    //eprintln!("entity: {:?} - children: {}", entity, children.len());
                     for &child in children.iter() {
-                        commands.entity(child).despawn();
+                        commands.entity(child).despawn_recursive();
                     }
                 }
                 let via = ConnectionLine::calculate_nodes(t_from.translation.x, t_from.translation.y, t_to.translation.x, t_to.translation.y);
@@ -828,20 +836,7 @@ fn change_input_system(
             // Update input vector
             inputs.0.resize(gate.inputs as usize, State::None);
 
-            let shape = shapes::Rectangle {
-                width: dists.width,
-                height: dists.height,
-                ..shapes::Rectangle::default()
-            };
-            let gate = GeometryBuilder::build_as(
-                &shape,
-                ShapeColors::outlined(Color::TEAL, Color::BLACK),
-                DrawMode::Outlined {
-                    fill_options: FillOptions::default(),
-                    outline_options: StrokeOptions::default().with_line_width(10.0),
-                },
-                Transform::from_xyz(translation.x, translation.y, translation.z),
-            );
+            let gate = Gate::new_body(translation.x, translation.y, translation.z, dists.width, dists.height);
             
             // Update body
             commands.entity(ev.gate).remove_bundle::<ShapeBundle>();
@@ -871,7 +866,7 @@ fn change_input_system(
                                 }
 
                                 // Finally remove entity.
-                                commands.entity(*connector).despawn();
+                                commands.entity(*connector).despawn_recursive();
                             }
                         }
                     }

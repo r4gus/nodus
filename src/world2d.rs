@@ -231,7 +231,7 @@ pub mod interaction2d {
                 mw.y <= transform.translation.y + interactable.bounding_box.0.y + 
                     interactable.bounding_box.1.y 
             {
-                eprintln!("hover {:?}", entity);    
+                //eprintln!("hover {:?}", entity);    
                 commands.entity(entity).insert(Hover);
             } else {
                 commands.entity(entity).remove::<Hover>();
