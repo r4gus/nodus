@@ -6,8 +6,11 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use nodus::world2d::camera2d::MouseWorldPos;
 use bevy_egui::{egui, EguiContext};
 use bevy_prototype_lyon::entity::ShapeBundle;
+use crate::{FontAssets, GameState};
 
 pub struct NodePlugin;
+
+pub struct NodeInGamePlugin;
 
 const NODE_GROUP: u32 = 1;
 const CONNECTOR_GROUP: u32 = 2;
@@ -40,6 +43,33 @@ impl Plugin for NodePlugin {
             .add_system(ui_node_info_system.system())
             .add_system(change_input_system.system())
             .add_system(disconnect_event.system());
+        
+        info!("NodePlugin loaded");
+    }
+}
+
+impl Plugin for NodeInGamePlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app.add_event::<ConnectEvent>()
+            .add_event::<ChangeInput>()
+            .add_event::<DisconnectEvent>()
+            .add_system_set(
+                SystemSet::on_update(GameState::InGame)
+                    .with_system(transition_system.system().label("transition"))
+                    .with_system(propagation_system.system().after("transition"))
+                    .with_system(highlight_connector_system.system())
+                    .with_system(drag_gate_system.system())
+                    .with_system(drag_connector_system.system().label("drag_conn_system"))
+                    .with_system(connect_nodes.system().after("drag_conn_system"))
+                    .with_system(draw_line_system.system())
+                    .with_system(ui_node_info_system.system())
+                    .with_system(change_input_system.system())
+                    .with_system(disconnect_event.system())
+            )
+            .add_system_set(
+                SystemSet::on_enter(GameState::InGame)
+                    .with_system(setup.system())
+            );
         
         info!("NodePlugin loaded");
     }
@@ -89,6 +119,7 @@ pub struct NodeRange {
 
 /// Flag for logic gates.
 pub struct Gate {
+    pub symbol: String,
     pub inputs: u32,
     pub outputs: u32,
     pub in_range: NodeRange,
@@ -149,10 +180,12 @@ impl Gate {
     pub fn new(
         commands: &mut Commands, 
         name: String,
+        symbol: String,
         x: f32, y: f32, 
         in_range: NodeRange, 
         out_range: NodeRange,
-        functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>
+        functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
+        font: Handle<Font>,
     ) { 
         let dists = Gate::get_distances(in_range.min as f32, out_range.min as f32);
 
@@ -161,7 +194,26 @@ impl Gate {
         let gate = Gate::new_body(x, y, zidx, dists.width, dists.height);
         let parent = commands
             .spawn_bundle(gate)
+            .insert_bundle(
+                Text2dBundle {
+                    text: Text::with_section(
+                        &symbol,
+                        TextStyle {
+                            font: font.clone(),
+                            font_size: 30.0,
+                            color: Color::BLACK,
+                        },
+                        TextAlignment {
+                            horizontal: HorizontalAlign::Center,
+                            ..Default::default()
+                        },
+                    ),
+                    transform: Transform::from_xyz(x, y, zidx + 1.),
+                    ..Default::default()
+                }
+            )
             .insert(Gate { 
+                symbol,
                 inputs: in_range.min,
                 outputs: out_range.min,
                 in_range,
@@ -202,29 +254,39 @@ impl Gate {
     pub fn constant(
         commands: &mut Commands, 
         name: String,
+        symbol: String,
         x: f32, y: f32,
         state: State,
+        font: Handle<Font>,
     ) {
         let dists = Gate::get_distances(1., 1.);
 
         let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
-        let shape = shapes::Rectangle {
-            width: dists.width,
-            height: dists.height,
-            ..shapes::Rectangle::default()
-        };
-        let gate = GeometryBuilder::build_as(
-            &shape,
-            ShapeColors::outlined(Color::TEAL, Color::BLACK),
-            DrawMode::Outlined {
-                fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default().with_line_width(10.0),
-            },
-            Transform::from_xyz(x, y, zidx),
-        );
+
+        let gate = Gate::new_body(x, y, zidx, dists.width, dists.height);
+
         let parent = commands
             .spawn_bundle(gate)
-            .insert(Gate { 
+            .insert_bundle(
+                Text2dBundle {
+                    text: Text::with_section(
+                        &symbol,
+                        TextStyle {
+                            font: font.clone(),
+                            font_size: 30.0,
+                            color: Color::BLACK,
+                        },
+                        TextAlignment {
+                            horizontal: HorizontalAlign::Center,
+                            ..Default::default()
+                        },
+                    ),
+                    transform: Transform::from_xyz(x, y, zidx + 1.),
+                    ..Default::default()
+                }
+            )
+            .insert(Gate {
+                symbol,
                 inputs: 1,
                 outputs: 1,
                 in_range: NodeRange { min: 1, max: 1 },
@@ -298,9 +360,10 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
 }
 
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, font: Res<FontAssets>) {
     Gate::new(&mut commands, 
               "NOT Gate".to_string(), 
+              "NOT".to_string(),
               0., 0., 
               NodeRange { min: 1, max: 1 },
               NodeRange { min: 1, max: 1 },
@@ -310,11 +373,13 @@ fn setup(mut commands: Commands) {
                     State::Low => State::High,
                     State::High => State::Low,
                 }
-              },]
+              },],
+              font.main.clone(),
               );
 
     Gate::new(&mut commands, 
               "AND Gate".to_string(), 
+              "AND".to_string(),
               250., 0., 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
@@ -328,11 +393,13 @@ fn setup(mut commands: Commands) {
                     }
                   }
                   ret
-              },]
+              },],
+              font.main.clone(),
             );
 
     Gate::new(&mut commands, 
               "OR Gate".to_string(), 
+              "OR".to_string(),
               500., 0., 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
@@ -346,18 +413,23 @@ fn setup(mut commands: Commands) {
                     }
                   }
                   ret
-              },]
+              },],
+              font.main.clone(),
             );
 
     Gate::constant(&mut commands,
                    "HIGH Const".to_string(),
+                   "1".to_string(),
                    -200., 200.,
-                   State::High);
+                   State::High,
+                   font.main.clone());
 
     Gate::constant(&mut commands,
                    "LOW Const".to_string(),
+                   "0".to_string(),
                    -200., -200.,
-                   State::Low);
+                   State::Low,
+                   font.main.clone());
 }
 
 

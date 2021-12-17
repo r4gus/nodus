@@ -9,6 +9,7 @@ edition = "2021"
 bevy = { version = "0.5", features = ["dynamic", "wayland"] }
 bevy_prototype_lyon = "0.3"
 bevy_egui = "0.8"
+bevy_asset_loader = "0.6"
 
 [toolchain]
 channel = "nightly"
