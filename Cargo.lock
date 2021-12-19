@@ -308,6 +308,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_canvas"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2487eb02f0831f7b72f743c151c7a0546a5594f00aca9ad288d11f0f84c85eaa"
+dependencies = [
+ "bevy",
+ "lyon_tessellation",
+]
+
+[[package]]
 name = "bevy_core"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2516,6 +2526,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_asset_loader",
+ "bevy_canvas",
  "bevy_egui",
  "bevy_prototype_lyon",
 ]

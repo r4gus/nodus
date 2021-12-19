@@ -131,12 +131,16 @@ pub mod interaction2d {
     use std::collections::HashMap;
 
     pub struct Interaction2DPlugin;
-
+    
     impl Plugin for Interaction2DPlugin {
         fn build(&self, app: &mut AppBuilder) {
-            app.add_system(interaction_system.system().label("interaction"))
-                .add_system(selection_system.system().after("interaction"))
-                .add_system(drag_system.system());
+            app.add_system_set(
+                SystemSet::new()
+                    .label("interaction2d")
+                    .with_system(interaction_system.system().label("interaction"))
+                    .with_system(selection_system.system().after("interaction"))
+                    .with_system(drag_system.system())
+            );
         }
     }
     
@@ -273,6 +277,7 @@ pub mod interaction2d {
                 }
             }
             
+
             if let Some(entity) = e {
                 for entity in q_selected.iter() {
                     commands.entity(entity).remove::<Selected>();

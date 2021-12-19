@@ -6,6 +6,10 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use nodus::world2d::camera2d::MouseWorldPos;
 use bevy_egui::{egui, EguiContext};
 use bevy_prototype_lyon::entity::ShapeBundle;
+use bevy_canvas::{
+    common_shapes::{Line},
+    Canvas, FillOptions, LineCap, StrokeOptions,
+};
 use crate::{FontAssets, GameState};
 
 pub struct NodePlugin;
@@ -24,6 +28,7 @@ macro_rules! trans {
     };
 }
 
+/*
 impl Plugin for NodePlugin {
     fn build(&self, app: &mut AppBuilder) {
         // add things to the app here
@@ -33,20 +38,22 @@ impl Plugin for NodePlugin {
             .add_event::<ConnectEvent>()
             .add_event::<ChangeInput>()
             .add_event::<DisconnectEvent>()
-            .add_system(transition_system.system().label("transition"))
-            .add_system(propagation_system.system().after("transition"))
-            .add_system(highlight_connector_system.system())
-            .add_system(drag_gate_system.system())
-            .add_system(drag_connector_system.system().label("drag_conn_system"))
-            .add_system(connect_nodes.system().after("drag_conn_system"))
-            .add_system(draw_line_system.system())
             .add_system(ui_node_info_system.system())
-            .add_system(change_input_system.system())
-            .add_system(disconnect_event.system());
+            .add_system(delete_gate_system.system().label("delete"))
+            .add_system(change_input_system.system().label("change"))
+            .add_system(disconnect_event.system().label("disconnect").after("delete").after("change"))
+            .add_system(transition_system.system().label("transition").after("disconnect"))
+            .add_system(propagation_system.system().after("transition").after("disconnect"))
+            .add_system(highlight_connector_system.system().after("disconnect"))
+            .add_system(drag_gate_system.system().after("disconnect"))
+            .add_system(drag_connector_system.system().label("drag_conn_system").after("disconnect"))
+            .add_system(connect_nodes.system().after("drag_conn_system").after("disconnect"))
+            .add_system(draw_line_system.system().after("disconnect"));
         
         info!("NodePlugin loaded");
     }
 }
+*/
 
 impl Plugin for NodeInGamePlugin {
     fn build(&self, app: &mut AppBuilder) {
@@ -54,17 +61,24 @@ impl Plugin for NodeInGamePlugin {
             .add_event::<ChangeInput>()
             .add_event::<DisconnectEvent>()
             .add_system_set(
-                SystemSet::on_update(GameState::InGame)
+                SystemSet::on_update(GameState::InGame).after("interaction2d")
+                    .with_system(ui_node_info_system.system())
+                    // It's important to run disconnect before systems that delete
+                    // nodes (and therefore connectors) because disconnect_event
+                    // wants to insert(Free) connectors even if they are queued for
+                    // deletion.
+                    .with_system(disconnect_event.system().label("disconnect"))
+                    .with_system(delete_gate_system.system().label("delete").after("disconnect"))
+                    .with_system(change_input_system.system().label("change").after("disconnect"))
+                    .with_system(delete_line_system.system().after("disconnect"))
                     .with_system(transition_system.system().label("transition"))
                     .with_system(propagation_system.system().after("transition"))
                     .with_system(highlight_connector_system.system())
                     .with_system(drag_gate_system.system())
                     .with_system(drag_connector_system.system().label("drag_conn_system"))
                     .with_system(connect_nodes.system().after("drag_conn_system"))
-                    .with_system(draw_line_system.system())
-                    .with_system(ui_node_info_system.system())
-                    .with_system(change_input_system.system())
-                    .with_system(disconnect_event.system())
+                    .with_system(draw_line_system.system().label("draw_line"))
+                    .with_system(line_selection_system.system().after("draw_line"))
             )
             .add_system_set(
                 SystemSet::on_enter(GameState::InGame)
@@ -192,9 +206,8 @@ impl Gate {
         let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
         let gate = Gate::new_body(x, y, zidx, dists.width, dists.height);
-        let parent = commands
-            .spawn_bundle(gate)
-            .insert_bundle(
+
+        let sym_text = commands.spawn_bundle(
                 Text2dBundle {
                     text: Text::with_section(
                         &symbol,
@@ -208,10 +221,13 @@ impl Gate {
                             ..Default::default()
                         },
                     ),
-                    transform: Transform::from_xyz(x, y, zidx + 1.),
+                    transform: Transform::from_xyz(0., 0., zidx),
                     ..Default::default()
                 }
-            )
+            ).id();
+
+        let parent = commands
+            .spawn_bundle(gate)
             .insert(Gate { 
                 symbol,
                 inputs: in_range.min,
@@ -228,6 +244,8 @@ impl Gate {
             .insert(Selectable)
             .insert(Draggable { update: true })
             .id();
+
+        commands.entity(parent).push_children(&[sym_text]);
         
         let mut entvec: Vec<Entity> = Vec::new();
         for i in 1..=in_range.min {
@@ -265,9 +283,7 @@ impl Gate {
 
         let gate = Gate::new_body(x, y, zidx, dists.width, dists.height);
 
-        let parent = commands
-            .spawn_bundle(gate)
-            .insert_bundle(
+        let sym_text = commands.spawn_bundle(
                 Text2dBundle {
                     text: Text::with_section(
                         &symbol,
@@ -281,10 +297,13 @@ impl Gate {
                             ..Default::default()
                         },
                     ),
-                    transform: Transform::from_xyz(x, y, zidx + 1.),
+                    transform: Transform::from_xyz(0., 0., zidx),
                     ..Default::default()
                 }
-            )
+            ).id();
+
+        let parent = commands
+            .spawn_bundle(gate)
             .insert(Gate {
                 symbol,
                 inputs: 1,
@@ -301,6 +320,8 @@ impl Gate {
             .insert(Selectable)
             .insert(Draggable { update: true })
             .id();
+
+        commands.entity(parent).push_children(&[sym_text]);
         
         let mut entvec: Vec<Entity> = Vec::new();
         entvec.push(Connector::new(commands, 
@@ -344,8 +365,8 @@ fn transition_system(mut query: Query<(&Inputs, &Transitions, &mut Outputs)>) {
 fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Query<&mut Inputs>) {
     for (outputs, targets) in from_query.iter() {
         for i in 0..outputs.0.len() {
-            for (entity, idxvec) in &targets.0[i] {
-                if let Ok(mut inputs) = to_query.get_component_mut::<Inputs>(*entity) {
+            for (&entity, idxvec) in &targets.0[i] {
+                if let Ok(mut inputs) = to_query.get_mut(entity) {
                     for &j in idxvec {
                         if j < inputs.0.len() {
                             inputs.0[j] = outputs.0[i];
@@ -363,7 +384,7 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
 fn setup(mut commands: Commands, font: Res<FontAssets>) {
     Gate::new(&mut commands, 
               "NOT Gate".to_string(), 
-              "NOT".to_string(),
+              "\u{00ac}1".to_string(),
               0., 0., 
               NodeRange { min: 1, max: 1 },
               NodeRange { min: 1, max: 1 },
@@ -379,7 +400,7 @@ fn setup(mut commands: Commands, font: Res<FontAssets>) {
 
     Gate::new(&mut commands, 
               "AND Gate".to_string(), 
-              "AND".to_string(),
+              "&".to_string(),
               250., 0., 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
@@ -399,7 +420,7 @@ fn setup(mut commands: Commands, font: Res<FontAssets>) {
 
     Gate::new(&mut commands, 
               "OR Gate".to_string(), 
-              "OR".to_string(),
+              "≥1".to_string(),
               500., 0., 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
@@ -441,6 +462,37 @@ fn drag_gate_system(
     if mb.just_released(MouseButton::Left) {
         for dragged_gate in q_dragged.iter() {
             commands.entity(dragged_gate).remove::<Drag>();
+        }
+    }
+}
+
+fn delete_gate_system(
+    mut commands: Commands,
+    input_keyboard: Res<Input<KeyCode>>,
+    mut ev_disconnect: EventWriter<DisconnectEvent>,
+    q_gate: Query<(Entity, &Children), (With<Selected>, With<Gate>)>,
+    q_connectors: Query<&Connections>,
+) {
+    if input_keyboard.pressed(KeyCode::Delete) {
+        // Iterate over every selected gate and its children.
+        for (entity, children) in q_gate.iter() {
+            // Get the connections for each child
+            // and disconnect all.
+            for &child in children.iter() {
+                if let Ok(conns) = q_connectors.get(child) {
+                    for &connection in &conns.0 {
+                        ev_disconnect.send(
+                            DisconnectEvent {
+                                connection,
+                                in_parent: Some(entity),
+                            }
+                        );
+                    }
+                }
+            }
+
+            // Delete the gate itself
+            commands.entity(entity).despawn_recursive();
         }
     }
 }
@@ -622,7 +674,6 @@ fn connect_nodes(
     q_transform: Query<&GlobalTransform, ()>,
 ) {
     for ev in ev_connect.iter() {
-        eprintln!("connect");
         let line = ConnectionLine::new(
             &mut commands,
             ConnInfo {
@@ -663,13 +714,12 @@ struct DisconnectEvent {
 fn disconnect_event(
     mut commands: Commands,
     mut ev_disconnect: EventReader<DisconnectEvent>,
-    mut q_line: Query<(&Children, &ConnectionLine)>,
+    mut q_line: Query<(&ConnectionLine)>,
     mut q_conn: Query<(&Parent, Entity, &mut Connections)>,
     mut q_parent: Query<&mut Targets>,
 ) {
     for ev in ev_disconnect.iter() {
-        eprintln!("disconnect");
-        if let Ok((children, line)) = q_line.get(ev.connection) {
+        if let Ok(line) = q_line.get(ev.connection) {
             let mut in_parent: Option<Entity> = None;
 
             // Unlink input connector (right hand side)
@@ -698,26 +748,30 @@ fn disconnect_event(
                 // target map of the gate the output connector belongs
                 // to and remove the associated entry.
                 if let Ok(mut targets) = q_parent.get_mut(parent_out.0) {
-                    if let Some(index) = targets.0[line.output.index]
-                                    .get_mut(&parent).expect("Should have associated entry")
-                                    .iter().position(|x| *x == line.input.index)
-                    {
-                        eprintln!("romove");
-                        targets.0[line.output.index]
-                            .get_mut(&parent).expect("Should have associated entry")
-                            .remove(index);
+                    let size = targets.0[line.output.index].get(&parent)
+                        .expect("Should have associated entry")
+                        .len();
+
+                    if size > 1 {
+                        if let Some(index) = targets.0[line.output.index]
+                                        .get_mut(&parent).expect("Should have associated entry")
+                                        .iter().position(|x| *x == line.input.index)
+                        {
+                            targets.0[line.output.index]
+                                .get_mut(&parent).expect("Should have associated entry")
+                                .remove(index);
+                        }
+                    } else {
+                        targets.0[line.output.index].remove(&parent);
                     }
                 }
-            }
-
-            for &child in children.iter() {
-                commands.entity(child).despawn_recursive();
             }
             
             // Finally remove the connection line itself.
             commands.entity(ev.connection).despawn_recursive();
         }
     }
+
 }
 
 // ############################# Connection Line ########################################
@@ -770,14 +824,15 @@ impl ConnectionLine {
 
 fn draw_line_system(
     mut commands: Commands,
-    q_line: Query<(Entity, &ConnectionLine), ()>,
+    mut q_line: Query<(Entity, &mut ConnectionLine), ()>,
     q_transform: Query<(&Parent, &Connector, &GlobalTransform), ()>,
     q_outputs: Query<&Outputs, ()>,
     q_children: Query<&Children>,
+    mut canvas: ResMut<Canvas>,
 ) {
     use bevy_prototype_lyon::entity::ShapeBundle;
 
-    for (entity, conn_line) in q_line.iter() {
+    for (entity, mut conn_line) in q_line.iter_mut() {
         if let Ok((t_parent, t_conn, t_from)) = q_transform.get(conn_line.output.entity) {
             // Set connection line color based on the value of the output.
             let color = if let Ok(outputs) = q_outputs.get(t_parent.0) {
@@ -791,53 +846,80 @@ fn draw_line_system(
             };
 
             if let Ok((_, _, t_to)) = q_transform.get(conn_line.input.entity) {
-                // Remove old line
-                if let Ok(children) = q_children.get(entity) {
-                    //eprintln!("entity: {:?} - children: {}", entity, children.len());
-                    for &child in children.iter() {
-                        commands.entity(child).despawn_recursive();
-                    }
-                }
+                
                 let via = ConnectionLine::calculate_nodes(t_from.translation.x, t_from.translation.y, t_to.translation.x, t_to.translation.y);
-                let mut segments: Vec<Entity> = Vec::new();
                 for i in 0..(via.len() - 1) {
-                    // Insert new line
-                    let shape = shapes::Line(Vec2::new(via[i].x, via[i].y), 
-                                             Vec2::new(via[i+1].x, via[i+1].y));
-
-                    let line = GeometryBuilder::build_as(
-                        &shape,
-                        ShapeColors::outlined(Color::TEAL, color),
-                        DrawMode::Outlined {
-                            fill_options: FillOptions::default(),
-                            outline_options: StrokeOptions::default().with_line_width(10.0),
-                        },
-                        Transform::from_xyz(0., 0., 1.),
+                    canvas.draw(
+                        &Line(Vec2::new(via[i].x, via[i].y), Vec2::new(via[i+1].x, via[i+1].y)),
+                        bevy_canvas::DrawMode::Stroke(
+                            StrokeOptions::default()
+                                .with_line_width(10.0)
+                                .with_line_join(bevy_canvas::LineJoin::Round)
+                                .with_line_cap(LineCap::Round),
+                        ),
+                        color,
                     );
-                    
-                    segments.push(commands.spawn_bundle(line).id());
-
-                    // This hides the edges between two lines.
-                    if i > 0 {
-                        let circ_shape = shapes::Circle { radius: 4.0, center: Vec2::new(via[i].x, via[i].y) };
-
-                        let circle = GeometryBuilder::build_as(
-                            &circ_shape,
-                            ShapeColors::outlined(color, color),
-                            DrawMode::Outlined {
-                                fill_options: FillOptions::default(),
-                                outline_options: StrokeOptions::default(),
-                            },
-                            Transform::from_xyz(0., 0., 1.),
-                        );
-                        segments.push(commands.spawn_bundle(circle).id());
-                    }
                 }
-
-                commands.entity(entity).push_children(&segments);
+                conn_line.via = via;
             }
         }
    }
+}
+
+fn line_selection_system(
+    mut commands: Commands,
+    mw: Res<MouseWorldPos>,
+    mb: Res<Input<MouseButton>>,
+    q_line: Query<(Entity, &ConnectionLine)>,
+    q_selected: Query<Entity, With<Selected>>,
+) {
+    if mb.just_pressed(MouseButton::Left) {
+        for entity in q_selected.iter() {
+            commands.entity(entity).remove::<Selected>();
+        }
+
+        for (entity, conn_line) in q_line.iter() {
+            for i in 0..(conn_line.via.len() - 1) {
+                let (x1, x2) = if conn_line.via[i].x <= conn_line.via[i+1].x {
+                    (conn_line.via[i].x, conn_line.via[i+1].x)
+                } else {
+                    (conn_line.via[i+1].x, conn_line.via[i].x)
+                };
+
+                let (y1, y2) = if conn_line.via[i].y <= conn_line.via[i+1].y {
+                    (conn_line.via[i].y, conn_line.via[i+1].y)
+                } else {
+                    (conn_line.via[i+1].y, conn_line.via[i].y)
+                };
+
+                if mw.x >= (x1 - 10.0) && mw.x <= (x2 + 10.0) &&
+                    mw.y >= (y1 - 10.0) && mw.y <= (y2 + 10.0)
+                {
+                    eprintln!("in");
+                    commands.entity(entity).insert(Selected);
+                } 
+            }
+        }
+    }
+}
+
+fn delete_line_system(
+    mut commands: Commands,
+    input_keyboard: Res<Input<KeyCode>>,
+    mut ev_disconnect: EventWriter<DisconnectEvent>,
+    q_line: Query<Entity, (With<Selected>, With<ConnectionLine>)>,
+) {
+    if input_keyboard.pressed(KeyCode::Delete) {
+        for entity in q_line.iter() {
+            eprintln!("delete {:?}", entity);
+            ev_disconnect.send(
+                DisconnectEvent {
+                    connection: entity,
+                    in_parent: None
+                }
+            );
+        }
+    }
 }
 
 // ############################# User Interface #########################################
