@@ -717,6 +717,7 @@ fn disconnect_event(
     mut q_line: Query<(&ConnectionLine)>,
     mut q_conn: Query<(&Parent, Entity, &mut Connections)>,
     mut q_parent: Query<&mut Targets>,
+    mut q_input: Query<&mut Inputs>,
 ) {
     for ev in ev_disconnect.iter() {
         if let Ok(line) = q_line.get(ev.connection) {
@@ -725,6 +726,11 @@ fn disconnect_event(
             // Unlink input connector (right hand side)
             if let Ok((parent_in, entity_in, mut connections_in)) = q_conn.get_mut(line.input.entity) {
                 in_parent = Some(parent_in.0);
+                
+                // Reset input state of the given connector.
+                if let Ok(mut inputs) = q_input.get_mut(parent_in.0) {
+                    inputs.0[line.input.index] = State::None;
+                }
 
                 // Clear the input line from the vector and
                 // mark the connector as free.
