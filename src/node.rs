@@ -11,6 +11,7 @@ use bevy_canvas::{
     Canvas, FillOptions, LineCap, StrokeOptions,
 };
 use crate::{FontAssets, GameState};
+use crate::radial_menu::OpenMenuEvent;
 
 pub struct NodePlugin;
 
@@ -79,6 +80,7 @@ impl Plugin for NodeInGamePlugin {
                     .with_system(connect_nodes.system().after("drag_conn_system"))
                     .with_system(draw_line_system.system().label("draw_line"))
                     .with_system(line_selection_system.system().after("draw_line"))
+                    .with_system(open_radial_menu_system.system())
             )
             .add_system_set(
                 SystemSet::on_enter(GameState::InGame)
@@ -853,7 +855,10 @@ fn draw_line_system(
 
             if let Ok((_, _, t_to)) = q_transform.get(conn_line.input.entity) {
                 
-                let via = ConnectionLine::calculate_nodes(t_from.translation.x, t_from.translation.y, t_to.translation.x, t_to.translation.y);
+                let via = ConnectionLine::calculate_nodes(t_from.translation.x, 
+                                                          t_from.translation.y, 
+                                                          t_to.translation.x, 
+                                                          t_to.translation.y);
                 for i in 0..(via.len() - 1) {
                     canvas.draw(
                         &Line(Vec2::new(via[i].x, via[i].y), Vec2::new(via[i+1].x, via[i+1].y)),
@@ -880,11 +885,7 @@ fn line_selection_system(
     q_selected: Query<Entity, With<Selected>>,
 ) {
     if mb.just_pressed(MouseButton::Left) {
-        for entity in q_selected.iter() {
-            commands.entity(entity).remove::<Selected>();
-        }
-
-        for (entity, conn_line) in q_line.iter() {
+        'outer: for (entity, conn_line) in q_line.iter() {
             for i in 0..(conn_line.via.len() - 1) {
                 let (x1, x2) = if conn_line.via[i].x <= conn_line.via[i+1].x {
                     (conn_line.via[i].x, conn_line.via[i+1].x)
@@ -901,8 +902,12 @@ fn line_selection_system(
                 if mw.x >= (x1 - 10.0) && mw.x <= (x2 + 10.0) &&
                     mw.y >= (y1 - 10.0) && mw.y <= (y2 + 10.0)
                 {
+                    for entity in q_selected.iter() {
+                        commands.entity(entity).remove::<Selected>();
+                    }
                     eprintln!("in");
                     commands.entity(entity).insert(Selected);
+                    break 'outer;
                 } 
             }
         }
@@ -929,6 +934,22 @@ fn delete_line_system(
 }
 
 // ############################# User Interface #########################################
+
+fn open_radial_menu_system(
+    mut commands: Commands,
+    mb: Res<Input<MouseButton>>,
+    mw: Res<MouseWorldPos>,
+    mut ev_open: EventWriter<OpenMenuEvent>,
+) {
+    if mb.just_pressed(MouseButton::Right) {
+        ev_open.send(
+            OpenMenuEvent {
+                position: Vec2::new(mw.x, mw.y),
+                mouse_button: MouseButton::Right,
+            }
+        );
+    }
+}
 
 struct ChangeInput {
     gate: Entity,

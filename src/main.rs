@@ -6,12 +6,15 @@ use bevy_egui::{egui, EguiContext, EguiPlugin};
 use bevy_asset_loader::{AssetLoader, AssetCollection};
 
 mod node;
+mod radial_menu;
 
 use node::*;
 use nodus::world2d::{
     camera2d::Camera2DPlugin, 
     interaction2d::Interaction2DPlugin
 };
+
+use radial_menu::RadialMenu;
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 enum GameState {
@@ -44,6 +47,7 @@ fn main() {
         .add_plugin(Camera2DPlugin)
         .add_plugin(Interaction2DPlugin)
         .add_plugin(NodeInGamePlugin)
+        .add_plugin(RadialMenu)
         .run();
 }
 
