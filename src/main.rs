@@ -40,7 +40,7 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_plugin(ShapePlugin) // immegiate 2d drawing
+        .add_plugin(ShapePlugin) // 2d drawing
         .add_plugin(CanvasPlugin)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())

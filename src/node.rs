@@ -11,7 +11,7 @@ use bevy_canvas::{
     Canvas, FillOptions, LineCap, StrokeOptions,
 };
 use crate::{FontAssets, GameState};
-use crate::radial_menu::OpenMenuEvent;
+use crate::radial_menu::{OpenMenuEvent, UpdateCursorPositionEvent};
 
 pub struct NodePlugin;
 
@@ -81,6 +81,7 @@ impl Plugin for NodeInGamePlugin {
                     .with_system(draw_line_system.system().label("draw_line"))
                     .with_system(line_selection_system.system().after("draw_line"))
                     .with_system(open_radial_menu_system.system())
+                    .with_system(update_radial_menu_system.system())
             )
             .add_system_set(
                 SystemSet::on_enter(GameState::InGame)
@@ -945,10 +946,25 @@ fn open_radial_menu_system(
         ev_open.send(
             OpenMenuEvent {
                 position: Vec2::new(mw.x, mw.y),
-                mouse_button: MouseButton::Right,
+                mouse_button: MouseButton::Left,
+                items: vec![
+                    ("x".to_string(), "close".to_string()),
+                    ("&".to_string(), "AND gate".to_string()),
+                    ("≥1".to_string(), "OR gate".to_string()),
+                    ("\u{00ac}1".to_string(), "NOT gate".to_string()),
+                ]
             }
         );
     }
+}
+
+fn update_radial_menu_system(
+    mw: Res<MouseWorldPos>,
+    mut ev_update: EventWriter<UpdateCursorPositionEvent>,
+) {
+    ev_update.send(
+        UpdateCursorPositionEvent(mw.0),
+    );
 }
 
 struct ChangeInput {
