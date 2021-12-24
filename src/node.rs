@@ -11,7 +11,11 @@ use bevy_canvas::{
     Canvas, FillOptions, LineCap, StrokeOptions,
 };
 use crate::{FontAssets, GameState};
-use crate::radial_menu::{OpenMenuEvent, UpdateCursorPositionEvent};
+use crate::radial_menu::{
+    OpenMenuEvent, 
+    UpdateCursorPositionEvent,
+    PropagateSelectionEvent
+};
 
 pub struct NodePlugin;
 
@@ -82,6 +86,7 @@ impl Plugin for NodeInGamePlugin {
                     .with_system(line_selection_system.system().after("draw_line"))
                     .with_system(open_radial_menu_system.system())
                     .with_system(update_radial_menu_system.system())
+                    .with_system(handle_radial_menu_event_system.system())
             )
             .add_system_set(
                 SystemSet::on_enter(GameState::InGame)
@@ -334,6 +339,101 @@ impl Gate {
                                    0));
         commands.entity(parent).push_children(&entvec);
     }
+
+    pub fn not_gate(commands: &mut Commands, 
+                    font: Handle<Font>,
+                    position: Vec2
+    ) {
+        Gate::new(commands, 
+                  "NOT Gate".to_string(), 
+                  "\u{00ac}1".to_string(),
+                  position.x, position.y, 
+                  NodeRange { min: 1, max: 1 },
+                  NodeRange { min: 1, max: 1 },
+                  trans![|inputs| {
+                    match inputs[0] {
+                        State::None => State::None,
+                        State::Low => State::High,
+                        State::High => State::Low,
+                    }
+                  },],
+                  font,
+        );
+    }
+
+    pub fn and_gate(commands: &mut Commands, 
+                    font: Handle<Font>,
+                    position: Vec2
+    ) {
+        Gate::new(commands, 
+                  "AND Gate".to_string(), 
+                  "&".to_string(),
+                  position.x, position.y, 
+                  NodeRange { min: 2, max: 16 },
+                  NodeRange { min: 1, max: 1 },
+                  trans![|inputs| {
+                      let mut ret = State::High;
+                      for i in inputs {
+                        match i {
+                            State::None => { ret = State::None; },
+                            State::Low => { ret = State::Low; break; },
+                            State::High => { },
+                        }
+                      }
+                      ret
+                  },],
+                  font,
+        );
+    }
+
+    pub fn or_gate(commands: &mut Commands, 
+                    font: Handle<Font>,
+                    position: Vec2
+    ) {
+        Gate::new(commands, 
+              "OR Gate".to_string(), 
+              "≥1".to_string(),
+              position.x, position.y, 
+              NodeRange { min: 2, max: 16 },
+              NodeRange { min: 1, max: 1 },
+              trans![|inputs| {
+                  let mut ret = State::Low;
+                  for i in inputs {
+                    match i {
+                        State::None => { ret = State::None; },
+                        State::Low => {  },
+                        State::High => { ret = State::High; break; },
+                    }
+                  }
+                  ret
+              },],
+              font,
+        );
+    }
+
+    pub fn high_const(commands: &mut Commands, 
+                    font: Handle<Font>,
+                    position: Vec2
+    ) {
+        Gate::constant(commands,
+                   "HIGH Const".to_string(),
+                   "1".to_string(),
+                   position.x, position.y,
+                   State::High,
+                   font);
+    }
+
+    pub fn low_const(commands: &mut Commands, 
+                    font: Handle<Font>,
+                    position: Vec2
+    ) {
+        Gate::constant(commands,
+                   "LOW Const".to_string(),
+                   "0".to_string(),
+                   position.x, position.y,
+                   State::Low,
+                   font);
+    }
 }
 
 /// Input values of a logical node, e.g. a gate.
@@ -385,75 +485,11 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
 
 
 fn setup(mut commands: Commands, font: Res<FontAssets>) {
-    Gate::new(&mut commands, 
-              "NOT Gate".to_string(), 
-              "\u{00ac}1".to_string(),
-              0., 0., 
-              NodeRange { min: 1, max: 1 },
-              NodeRange { min: 1, max: 1 },
-              trans![|inputs| {
-                match inputs[0] {
-                    State::None => State::None,
-                    State::Low => State::High,
-                    State::High => State::Low,
-                }
-              },],
-              font.main.clone(),
-              );
-
-    Gate::new(&mut commands, 
-              "AND Gate".to_string(), 
-              "&".to_string(),
-              250., 0., 
-              NodeRange { min: 2, max: 16 },
-              NodeRange { min: 1, max: 1 },
-              trans![|inputs| {
-                  let mut ret = State::High;
-                  for i in inputs {
-                    match i {
-                        State::None => { ret = State::None; },
-                        State::Low => { ret = State::Low; break; },
-                        State::High => { },
-                    }
-                  }
-                  ret
-              },],
-              font.main.clone(),
-            );
-
-    Gate::new(&mut commands, 
-              "OR Gate".to_string(), 
-              "≥1".to_string(),
-              500., 0., 
-              NodeRange { min: 2, max: 16 },
-              NodeRange { min: 1, max: 1 },
-              trans![|inputs| {
-                  let mut ret = State::Low;
-                  for i in inputs {
-                    match i {
-                        State::None => { ret = State::None; },
-                        State::Low => {  },
-                        State::High => { ret = State::High; break; },
-                    }
-                  }
-                  ret
-              },],
-              font.main.clone(),
-            );
-
-    Gate::constant(&mut commands,
-                   "HIGH Const".to_string(),
-                   "1".to_string(),
-                   -200., 200.,
-                   State::High,
-                   font.main.clone());
-
-    Gate::constant(&mut commands,
-                   "LOW Const".to_string(),
-                   "0".to_string(),
-                   -200., -200.,
-                   State::Low,
-                   font.main.clone());
+    Gate::not_gate(&mut commands, font.main.clone(), Vec2::new(0., 0.));
+    Gate::and_gate(&mut commands, font.main.clone(), Vec2::new(250., 0.));
+    Gate::or_gate(&mut commands, font.main.clone(), Vec2::new(500., 0.));
+    Gate::high_const(&mut commands, font.main.clone(), Vec2::new(200., -200.));
+    Gate::low_const(&mut commands, font.main.clone(), Vec2::new(-200., -200.));
 }
 
 
@@ -965,6 +1001,27 @@ fn update_radial_menu_system(
     ev_update.send(
         UpdateCursorPositionEvent(mw.0),
     );
+}
+
+fn handle_radial_menu_event_system(
+    mut commands: Commands,
+    mut ev_radial: EventReader<PropagateSelectionEvent>,
+    font: Res<FontAssets>,
+) {
+    for ev in ev_radial.iter() {
+        match ev.id {
+            1 => {
+                Gate::and_gate(&mut commands, font.main.clone(), ev.position);
+            },
+            2 => {
+                Gate::or_gate(&mut commands, font.main.clone(), ev.position);
+            },
+            3 => {
+                Gate::not_gate(&mut commands, font.main.clone(), ev.position);
+            },
+            _ => { }
+        }
+    }
 }
 
 struct ChangeInput {

@@ -12,6 +12,7 @@ impl Plugin for RadialMenu {
             .insert_resource(MenuSettings::default())
             .add_event::<OpenMenuEvent>()
             .add_event::<UpdateCursorPositionEvent>()
+            .add_event::<PropagateSelectionEvent>()
             .add_system_set(
             SystemSet::new()
                 .label("RadialMenu")
@@ -234,16 +235,37 @@ fn open_menu_system(
     }
 }
 
+/// Information about the item selected by the user.
+pub struct PropagateSelectionEvent {
+    /// Index/ ID of the selected item.
+    pub id: usize,
+    /// Center of the radial menu.
+    pub position: Vec2,
+}
+
 fn execute_and_close_system(
     mut commands: Commands,
     mb: Res<Input<MouseButton>>,
-    q_menu: Query<(Entity, &Menu), ()>
+    q_menu: Query<(Entity, &Menu), ()>,
+    q_item: Query<&MenuItem>,
+    mut ev_propagate: EventWriter<PropagateSelectionEvent>,
 ) {
     // There should only be one radial menu open at
     // any given moment.
     if let Ok((entity, menu)) = q_menu.single() {
 
         if mb.just_pressed(menu.mouse_button) {
+
+            if let Ok(item) = q_item.get(menu.selected) {
+                eprintln!("sending");
+                ev_propagate.send(
+                    PropagateSelectionEvent {
+                        id: item.id,
+                        position: menu.position,
+                    }
+                );
+            }
+
             commands.entity(entity).despawn_recursive();
         }
     }
@@ -266,12 +288,12 @@ fn update_system(
             let distance = ev.0 - menu.position;
             let mut rad = distance.y.atan2(distance.x);
             if rad < 0.0 { rad = rad + std::f32::consts::PI * 2.; }
-            eprintln!("{}", rad);
+            //eprintln!("{}", rad);
 
             for &child in children.iter() {
                 if let Ok((entity, item)) = q_item.get(child) {
                     if rad >= item.range.x && rad < item.range.y {
-                        eprintln!("{}", item.id);
+                        //eprintln!("{}", item.id);
 
                         if entity != menu.selected {
                             let radians_distance = (std::f32::consts::PI * 2.) / menu.items as f32;
