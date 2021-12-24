@@ -26,7 +26,7 @@ struct MenuSettings {
     outer_radius: f32,
     inner_radius: f32,
     main_color: Color,
-    border_color: Color,
+    second_color: Color,
     select_color: Color,
 }
 
@@ -36,7 +36,7 @@ impl MenuSettings {
             outer_radius: 220.0,
             inner_radius: 120.0,
             main_color: Color::rgba(1., 1., 1., 0.85),
-            border_color: Color::rgba(1., 1., 1., 0.85),
+            second_color: Color::rgba(0., 0., 0., 0.85),
             select_color: Color::TEAL,
         }
     }
@@ -55,6 +55,8 @@ struct MenuItem {
     text: String,
     range: Vec2,
 }
+
+struct ItemInfo;
 
 pub struct OpenMenuEvent {
     pub position: Vec2,
@@ -197,18 +199,37 @@ fn open_menu_system(
             })
             .push_children(&evec)
             .with_children(|parent| {
-                // TODO: Insert circle where additional information is displayed.
-                /*
-                parent.spawn_bundle(
-                    create_menu_item_visual(
-                        radians_distance,
-                        settings.inner_radius, 
-                        settings.outer_radius, 
-                        i,
-                        if i == 0 { settings.select_color } else { settings.main_color },
-                    )
+                let inner_circle = GeometryBuilder::build_as(
+                    &shapes::Circle {
+                        radius: settings.inner_radius * 0.9,
+                        center: Vec2::new(0., 0.),
+                    },
+                    ShapeColors::new(settings.second_color),
+                    DrawMode::Fill(Default::default()),
+                    Transform::from_xyz(0., 0., 0.),
                 );
-                */
+
+                parent
+                    .spawn_bundle(inner_circle)
+                    .insert(ItemInfo)
+                    .with_children(|parent| {
+                        parent.spawn_bundle(Text2dBundle {
+                            text: Text::with_section(
+                                &ev.items[0].1,
+                                TextStyle {
+                                    font: asset_server.load("fonts/hack.bold.ttf"),
+                                    font_size: 40.0,
+                                    color: Color::WHITE,
+                                },
+                                TextAlignment {
+                                    horizontal: HorizontalAlign::Center,
+                                    ..Default::default()
+                                },
+                            ),
+                            transform: Transform::from_xyz(0., 0., 1.),
+                            ..Default::default()
+                        });
+                    });
             });
     }
 }
@@ -236,6 +257,9 @@ fn update_system(
     settings: Res<MenuSettings>,
     mut q_menu: Query<(&Children, &mut Menu), ()>,
     q_item: Query<(Entity, &MenuItem)>,
+    q_item_info: Query<(Entity, &Children), With<ItemInfo>>,
+    q_text: Query<Entity, With<Text2dBundle>>,
+    asset_server: Res<AssetServer>,
 ) {
     if let Ok((children, mut menu)) = q_menu.single_mut() {
         for ev in ev_open.iter() {
@@ -251,7 +275,8 @@ fn update_system(
 
                         if entity != menu.selected {
                             let radians_distance = (std::f32::consts::PI * 2.) / menu.items as f32;
-
+                            
+                            // Highlight the new selected item.
                             commands.entity(entity).remove_bundle::<ShapeBundle>();
                             commands.entity(entity).insert_bundle(
                                 create_menu_item_visual(
@@ -262,7 +287,8 @@ fn update_system(
                                     settings.select_color,
                                 )
                             );
-
+                            
+                            // Remove highlighting from old item.
                             if let Ok((_, item)) = q_item.get(menu.selected) {
                                 commands.entity(menu.selected).remove_bundle::<ShapeBundle>();
                                 commands.entity(menu.selected).insert_bundle(
@@ -275,7 +301,33 @@ fn update_system(
                                     )
                                 );
                             }
+                            
+                            // Update info text.
+                            if let Ok((entity, children)) = q_item_info.single() {
+                                for &child in children.iter() {
+                                    commands.entity(child).despawn_recursive();
+                                }
 
+                                let id = commands.spawn_bundle(Text2dBundle {
+                                    text: Text::with_section(
+                                        &item.text,
+                                        TextStyle {
+                                            font: asset_server.load("fonts/hack.bold.ttf"),
+                                            font_size: 40.0,
+                                            color: Color::WHITE,
+                                        },
+                                        TextAlignment {
+                                            horizontal: HorizontalAlign::Center,
+                                            ..Default::default()
+                                        },
+                                    ),
+                                    transform: Transform::from_xyz(0., 0., 1.),
+                                    ..Default::default()
+                                }).id();
+
+                                commands.entity(entity).push_children(&[id]);
+                            }
+                            
                             menu.selected = entity;
                         }
 
