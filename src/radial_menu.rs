@@ -171,7 +171,7 @@ fn open_menu_system(
                             &ev.items[i].0,
                             TextStyle {
                                 font: asset_server.load("fonts/hack.bold.ttf"),
-                                font_size: 60.0,
+                                font_size: 40.0,
                                 color: Color::BLACK,
                             },
                             TextAlignment {
@@ -181,7 +181,7 @@ fn open_menu_system(
                         ),
                         transform: Transform::from_xyz(
                             center.cos() * factor, 
-                            center.sin() * factor - 30.,
+                            center.sin() * factor - 20.,
                             1.
                         ),
                         ..Default::default()
@@ -219,7 +219,7 @@ fn open_menu_system(
                                 &ev.items[0].1,
                                 TextStyle {
                                     font: asset_server.load("fonts/hack.bold.ttf"),
-                                    font_size: 40.0,
+                                    font_size: 20.0,
                                     color: Color::WHITE,
                                 },
                                 TextAlignment {
@@ -335,7 +335,7 @@ fn update_system(
                                         &item.text,
                                         TextStyle {
                                             font: asset_server.load("fonts/hack.bold.ttf"),
-                                            font_size: 40.0,
+                                            font_size: 20.0,
                                             color: Color::WHITE,
                                         },
                                         TextAlignment {

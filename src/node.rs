@@ -65,6 +65,7 @@ impl Plugin for NodeInGamePlugin {
         app.add_event::<ConnectEvent>()
             .add_event::<ChangeInput>()
             .add_event::<DisconnectEvent>()
+            .insert_resource(MenuState(MenuStates::Idle))
             .add_system_set(
                 SystemSet::on_update(GameState::InGame).after("interaction2d")
                     .with_system(ui_node_info_system.system())
@@ -386,6 +387,31 @@ impl Gate {
         );
     }
 
+    pub fn nand_gate(commands: &mut Commands, 
+                    font: Handle<Font>,
+                    position: Vec2
+    ) {
+        Gate::new(commands, 
+                  "NAND Gate".to_string(), 
+                  "\u{00ac}&".to_string(),
+                  position.x, position.y, 
+                  NodeRange { min: 2, max: 16 },
+                  NodeRange { min: 1, max: 1 },
+                  trans![|inputs| {
+                      let mut ret = State::Low;
+                      for i in inputs {
+                        match i {
+                            State::None => { ret = State::None; },
+                            State::Low => { ret = State::High; break; },
+                            State::High => { },
+                        }
+                      }
+                      ret
+                  },],
+                  font,
+        );
+    }
+
     pub fn or_gate(commands: &mut Commands, 
                     font: Handle<Font>,
                     position: Vec2
@@ -403,6 +429,31 @@ impl Gate {
                         State::None => { ret = State::None; },
                         State::Low => {  },
                         State::High => { ret = State::High; break; },
+                    }
+                  }
+                  ret
+              },],
+              font,
+        );
+    }
+
+    pub fn nor_gate(commands: &mut Commands, 
+                    font: Handle<Font>,
+                    position: Vec2
+    ) {
+        Gate::new(commands, 
+              "NOR Gate".to_string(), 
+              "\u{00ac}≥1".to_string(),
+              position.x, position.y, 
+              NodeRange { min: 2, max: 16 },
+              NodeRange { min: 1, max: 1 },
+              trans![|inputs| {
+                  let mut ret = State::High;
+                  for i in inputs {
+                    match i {
+                        State::None => { ret = State::None; },
+                        State::Low => {  },
+                        State::High => { ret = State::Low; break; },
                     }
                   }
                   ret
@@ -972,25 +1023,47 @@ fn delete_line_system(
 
 // ############################# User Interface #########################################
 
+#[derive(Debug, Eq, PartialEq)]
+enum MenuStates {
+    Idle,
+    Select,
+    LogicGates,
+    Inputs
+}
+
+struct MenuState(MenuStates);
+
 fn open_radial_menu_system(
     mut commands: Commands,
     mb: Res<Input<MouseButton>>,
     mw: Res<MouseWorldPos>,
+    mut ms: ResMut<MenuState>,
     mut ev_open: EventWriter<OpenMenuEvent>,
 ) {
-    if mb.just_pressed(MouseButton::Right) {
+    if mb.just_pressed(MouseButton::Right) && ms.0 == MenuStates::Idle {
         ev_open.send(
             OpenMenuEvent {
                 position: Vec2::new(mw.x, mw.y),
                 mouse_button: MouseButton::Left,
                 items: vec![
+                    /*
                     ("x".to_string(), "close".to_string()),
                     ("&".to_string(), "AND gate".to_string()),
+                    ("\u{00ac}&".to_string(), "NAND gate".to_string()),
                     ("≥1".to_string(), "OR gate".to_string()),
+                    ("\u{00ac}≥1".to_string(), "NOR gate".to_string()),
                     ("\u{00ac}1".to_string(), "NOT gate".to_string()),
+                    ("1".to_string(), "HIGH const".to_string()),
+                    ("0".to_string(), "LOW const".to_string()),
+                    */
+                    ("x".to_string(), "close".to_string()),
+                    ("Gates".to_string(), "Show Logic\nGates".to_string()),
+                    ("Inputs".to_string(), "Show Input\nControls".to_string()),
                 ]
             }
         );
+
+        ms.0 = MenuStates::Select;
     }
 }
 
@@ -1006,20 +1079,115 @@ fn update_radial_menu_system(
 fn handle_radial_menu_event_system(
     mut commands: Commands,
     mut ev_radial: EventReader<PropagateSelectionEvent>,
+    mut ev_open: EventWriter<OpenMenuEvent>,
     font: Res<FontAssets>,
+    mut ms: ResMut<MenuState>,
 ) {
     for ev in ev_radial.iter() {
-        match ev.id {
-            1 => {
-                Gate::and_gate(&mut commands, font.main.clone(), ev.position);
+        match ms.0 {
+            MenuStates::Select => {
+                match ev.id {
+                    1 => {
+                        ev_open.send(
+                            OpenMenuEvent {
+                                position: ev.position,
+                                mouse_button: MouseButton::Left,
+                                items: vec![
+                                    ("<-".to_string(), "back".to_string()),
+                                    ("&".to_string(), "AND gate".to_string()),
+                                    ("\u{00ac}&".to_string(), "NAND gate".to_string()),
+                                    ("≥1".to_string(), "OR gate".to_string()),
+                                    ("\u{00ac}≥1".to_string(), "NOR gate".to_string()),
+                                    ("\u{00ac}1".to_string(), "NOT gate".to_string()),
+                                ]
+                            }
+                        );
+                        ms.0 = MenuStates::LogicGates;
+                    },
+                    2 => {
+                        ev_open.send(
+                            OpenMenuEvent {
+                                position: ev.position,
+                                mouse_button: MouseButton::Left,
+                                items: vec![
+                                    ("<-".to_string(), "back".to_string()),
+                                    ("1".to_string(), "HIGH const".to_string()),
+                                    ("0".to_string(), "LOW const".to_string()),
+                                ]
+                            }
+                        );
+                        ms.0 = MenuStates::Inputs;
+                    },
+                    _ => { ms.0 = MenuStates::Idle; }
+                }
             },
-            2 => {
-                Gate::or_gate(&mut commands, font.main.clone(), ev.position);
+            MenuStates::LogicGates => {
+                match ev.id {
+                    1 => {
+                        Gate::and_gate(&mut commands, font.main.clone(), ev.position);
+                        ms.0 = MenuStates::Idle;
+                    },
+                    2 => {
+                        Gate::nand_gate(&mut commands, font.main.clone(), ev.position);
+                        ms.0 = MenuStates::Idle;
+                    },
+                    3 => {
+                        Gate::or_gate(&mut commands, font.main.clone(), ev.position);
+                        ms.0 = MenuStates::Idle;
+                    },
+                    4 => {
+                        Gate::nor_gate(&mut commands, font.main.clone(), ev.position);
+                        ms.0 = MenuStates::Idle;
+                    },
+                    5 => {
+                        Gate::not_gate(&mut commands, font.main.clone(), ev.position);
+                        ms.0 = MenuStates::Idle;
+                    },
+                    _ => {
+                        ev_open.send(
+                            OpenMenuEvent {
+                                position: ev.position,
+                                mouse_button: MouseButton::Left,
+                                items: vec![
+                                    ("x".to_string(), "close".to_string()),
+                                    ("Gates".to_string(), "Show Logic\nGates".to_string()),
+                                    ("Inputs".to_string(), "Show Input\nControls".to_string()),
+                                ]
+                            }
+                        );
+
+                        ms.0 = MenuStates::Select;
+                    }
+                }
             },
-            3 => {
-                Gate::not_gate(&mut commands, font.main.clone(), ev.position);
+            MenuStates::Inputs => {
+                match ev.id {
+                    1 => {
+                        Gate::high_const(&mut commands, font.main.clone(), ev.position);
+                        ms.0 = MenuStates::Idle;
+                    },
+                    2 => {
+                        Gate::low_const(&mut commands, font.main.clone(), ev.position);
+                        ms.0 = MenuStates::Idle;
+                    },
+                    _ => {
+                        ev_open.send(
+                            OpenMenuEvent {
+                                position: ev.position,
+                                mouse_button: MouseButton::Left,
+                                items: vec![
+                                    ("x".to_string(), "close".to_string()),
+                                    ("Gates".to_string(), "Show Logic\nGates".to_string()),
+                                    ("Inputs".to_string(), "Show Input\nControls".to_string()),
+                                ]
+                            }
+                        );
+
+                        ms.0 = MenuStates::Select;
+                    }
+                }
             },
-            _ => { }
+            MenuStates::Idle => { } // This should never happen
         }
     }
 }
