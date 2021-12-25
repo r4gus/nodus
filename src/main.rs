@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
-use bevy_canvas::CanvasPlugin;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 use bevy_asset_loader::{AssetLoader, AssetCollection};
@@ -41,7 +40,6 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .add_plugin(ShapePlugin) // 2d drawing
-        .add_plugin(CanvasPlugin)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(Camera2DPlugin)

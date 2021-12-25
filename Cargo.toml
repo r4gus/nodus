@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 bevy = { src = "0.5", features = ["dynamic", "wayland"] }
 bevy_prototype_lyon = "0.3"
-bevy_canvas = "0.1"
 bevy_egui = "0.8"
 bevy_asset_loader = "0.6"
 

@@ -6,10 +6,6 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use nodus::world2d::camera2d::MouseWorldPos;
 use bevy_egui::{egui, EguiContext};
 use bevy_prototype_lyon::entity::ShapeBundle;
-use bevy_canvas::{
-    common_shapes::{Line},
-    Canvas, FillOptions, LineCap, StrokeOptions, Path,
-};
 use crate::{FontAssets, GameState};
 use crate::radial_menu::{
     OpenMenuEvent, 
@@ -83,7 +79,10 @@ impl Plugin for NodeInGamePlugin {
                     .with_system(drag_gate_system.system())
                     .with_system(drag_connector_system.system().label("drag_conn_system"))
                     .with_system(connect_nodes.system().after("drag_conn_system"))
-                    .with_system(draw_line_system.system().label("draw_line"))
+                    // Draw Line inserts a new bundle into an entity that might has been
+                    // deleted by delete_line_system, i.e. we run it before any deletions
+                    // to prevent an segfault.
+                    .with_system(draw_line_system.system().label("draw_line").before("disconnect"))
                     .with_system(line_selection_system.system().after("draw_line"))
                     .with_system(open_radial_menu_system.system())
                     .with_system(update_radial_menu_system.system())
@@ -280,9 +279,9 @@ impl Gate {
         Gate::invert(Gate::xor_gate_path())
     }
 
-    fn new_gate_body(position: Vec3, path: &Path) -> ShapeBundle {
+    fn new_gate_body(position: Vec3, path: PathBuilder) -> ShapeBundle {
         GeometryBuilder::build_as(
-            path,
+            &path.build(),
             ShapeColors::outlined(Color::WHITE, Color::BLACK),
             DrawMode::Outlined {
                 fill_options: FillOptions::default(),
@@ -296,7 +295,7 @@ impl Gate {
         commands: &mut Commands, 
         name: String,
         symbol: String,
-        path: &Path,
+        path: PathBuilder,
         x: f32, y: f32, 
         in_range: NodeRange, 
         out_range: NodeRange,
@@ -538,7 +537,7 @@ impl Gate {
         Gate::new_gate(commands, 
                   "NOT Gate".to_string(), 
                   "\u{00ac}1".to_string(),
-                  &Gate::not_gate_path().build(),
+                  Gate::not_gate_path(),
                   position.x, position.y, 
                   NodeRange { min: 1, max: 1 },
                   NodeRange { min: 1, max: 1 },
@@ -560,7 +559,7 @@ impl Gate {
         Gate::new_gate(commands, 
                   "AND Gate".to_string(), 
                   "&".to_string(),
-                  &Gate::and_gate_path().build(),
+                  Gate::and_gate_path(),
                   position.x, position.y, 
                   NodeRange { min: 2, max: 16 },
                   NodeRange { min: 1, max: 1 },
@@ -586,7 +585,7 @@ impl Gate {
         Gate::new_gate(commands, 
                   "NAND Gate".to_string(), 
                   "\u{00ac}&".to_string(),
-                  &Gate::nand_gate_path().build(),
+                  Gate::nand_gate_path(),
                   position.x, position.y, 
                   NodeRange { min: 2, max: 16 },
                   NodeRange { min: 1, max: 1 },
@@ -612,7 +611,7 @@ impl Gate {
         Gate::new_gate(commands, 
               "OR Gate".to_string(), 
               "≥1".to_string(),
-              &Gate::or_gate_path().build(),
+              Gate::or_gate_path(),
               position.x, position.y, 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
@@ -638,7 +637,7 @@ impl Gate {
         Gate::new_gate(commands, 
               "NOR Gate".to_string(), 
               "\u{00ac}≥1".to_string(),
-              &Gate::nor_gate_path().build(),
+              Gate::nor_gate_path(),
               position.x, position.y, 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
@@ -664,7 +663,7 @@ impl Gate {
         Gate::new_gate(commands, 
               "XOR Gate".to_string(), 
               "XOR".to_string(),
-              &Gate::xor_gate_path().build(),
+              Gate::xor_gate_path(),
               position.x, position.y, 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
@@ -1151,7 +1150,6 @@ fn draw_line_system(
     q_transform: Query<(&Parent, &Connector, &GlobalTransform), ()>,
     q_outputs: Query<&Outputs, ()>,
     q_children: Query<&Children>,
-    mut canvas: ResMut<Canvas>,
 ) {
     use bevy_prototype_lyon::entity::ShapeBundle;
 
@@ -1174,18 +1172,29 @@ fn draw_line_system(
                                                           t_from.translation.y, 
                                                           t_to.translation.x, 
                                                           t_to.translation.y);
-                for i in 0..(via.len() - 1) {
-                    canvas.draw(
-                        &Line(Vec2::new(via[i].x, via[i].y), Vec2::new(via[i+1].x, via[i+1].y)),
-                        bevy_canvas::DrawMode::Stroke(
-                            StrokeOptions::default()
-                                .with_line_width(10.0)
-                                .with_line_join(bevy_canvas::LineJoin::Round)
-                                .with_line_cap(LineCap::Round),
-                        ),
-                        color,
-                    );
+                
+                // Remove current line path.
+                commands.entity(entity).remove_bundle::<ShapeBundle>();
+                
+                // Create new path.
+                let mut path = PathBuilder::new();
+                path.move_to(via[0]);
+                for i in 0..via.len() {
+                    path.line_to(via[i]); 
                 }
+                commands.entity(entity).insert_bundle(
+                    GeometryBuilder::build_as(
+                        &path.build(),
+                        ShapeColors::new(color),
+                        DrawMode::Stroke(
+                            StrokeOptions::default()
+                                .with_line_width(8.0)
+                                .with_line_join(LineJoin::Bevel)
+                        ),
+                        Transform::from_xyz(0., 0., 0.),
+                    )
+                );
+
                 conn_line.via = via;
             }
         }
@@ -1235,7 +1244,7 @@ fn delete_line_system(
     mut ev_disconnect: EventWriter<DisconnectEvent>,
     q_line: Query<Entity, (With<Selected>, With<ConnectionLine>)>,
 ) {
-    if input_keyboard.pressed(KeyCode::Delete) {
+    if input_keyboard.just_pressed(KeyCode::Delete) {
         for entity in q_line.iter() {
             eprintln!("delete {:?}", entity);
             ev_disconnect.send(
