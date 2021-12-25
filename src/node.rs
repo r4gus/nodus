@@ -8,7 +8,7 @@ use bevy_egui::{egui, EguiContext};
 use bevy_prototype_lyon::entity::ShapeBundle;
 use bevy_canvas::{
     common_shapes::{Line},
-    Canvas, FillOptions, LineCap, StrokeOptions,
+    Canvas, FillOptions, LineCap, StrokeOptions, Path,
 };
 use crate::{FontAssets, GameState};
 use crate::radial_menu::{
@@ -147,9 +147,11 @@ pub struct Gate {
     pub outputs: u32,
     pub in_range: NodeRange,
     pub out_range: NodeRange,
+    /// This is a generic gate, i.e. it has not a specific IEEE shape.
+    pub generic: bool,
 }
 
-const GATE_SIZE: f32 = 100.;
+const GATE_SIZE: f32 = 128.;
 
 struct GateSize {
     width: f32,
@@ -161,7 +163,193 @@ struct GateSize {
 
 static Z_INDEX: AtomicI32 = AtomicI32::new(1);
 
+
 impl Gate {
+
+    fn and_gate_path() -> PathBuilder {
+        let half = GATE_SIZE / 2.;
+
+        let mut path = PathBuilder::new();
+        path.move_to(Vec2::new(-half, half));
+        path.line_to(Vec2::new(-half, -half));
+        path.line_to(Vec2::new(0., -half));
+        path.arc(
+            Vec2::new(0., 0.),
+            Vec2::new(
+                half,
+                half,
+            ),
+            std::f32::consts::PI,
+            0.
+        );
+        path.close();
+        path
+    }
+
+    fn invert(mut path: PathBuilder) -> PathBuilder {
+        let radius = GATE_SIZE * 0.1;
+        let half = GATE_SIZE / 2.;
+
+        path.arc(
+            Vec2::new(half + radius + 5., 0.),
+            Vec2::new(
+                radius,
+                radius,
+            ),
+            std::f32::consts::PI * 2.,
+            0.
+        );
+        path
+    }
+
+    fn nand_gate_path() -> PathBuilder {
+        Gate::invert(Gate::and_gate_path())
+    }
+
+    fn not_gate_path() -> PathBuilder {
+        let half = GATE_SIZE / 2.;
+
+        let mut path = PathBuilder::new();
+        path.move_to(Vec2::new(-half, half));
+        path.line_to(Vec2::new(-half, -half));
+        path.line_to(Vec2::new(half, 0.));
+        path.close();
+        Gate::invert(path)
+    }
+
+    fn or_gate_path() -> PathBuilder {
+        let half = GATE_SIZE / 2.;
+
+        let mut path = PathBuilder::new();
+        path.move_to(Vec2::new(-half, half));
+        path.arc(
+            Vec2::new(-half, 0.),
+            Vec2::new(
+                half / 2.,
+                half,
+            ),
+            -std::f32::consts::PI,
+            0.
+        );
+        path.line_to(Vec2::new(0., -half));
+        path.arc(
+            Vec2::new(0., 0.),
+            Vec2::new(
+                half,
+                half,
+            ),
+            std::f32::consts::PI,
+            0.
+        );
+        path.close();
+        path
+    }
+
+    fn nor_gate_path() -> PathBuilder {
+        Gate::invert(Gate::or_gate_path())
+    }
+
+    fn xor_gate_path() -> PathBuilder {
+        let half = GATE_SIZE / 2.;
+        let mut path = Gate::or_gate_path();
+
+        path.move_to(Vec2::new(-half - 15., half));
+        path.arc(
+            Vec2::new(-half - 15., 0.),
+            Vec2::new(
+                half / 2.,
+                half,
+            ),
+            -std::f32::consts::PI,
+            0.
+        );
+        path.line_to(Vec2::new(-half - 16., -half));
+        path.arc(
+            Vec2::new(-half - 16., 0.),
+            Vec2::new(
+                half / 2.,
+                half,
+            ),
+            std::f32::consts::PI,
+            0.
+        );
+        path
+    }
+
+    fn xnor_gate_path() -> PathBuilder {
+        Gate::invert(Gate::xor_gate_path())
+    }
+
+    fn new_gate_body(position: Vec3, path: &Path) -> ShapeBundle {
+        GeometryBuilder::build_as(
+            path,
+            ShapeColors::outlined(Color::WHITE, Color::BLACK),
+            DrawMode::Outlined {
+                fill_options: FillOptions::default(),
+                outline_options: StrokeOptions::default().with_line_width(6.0),
+            },
+            Transform::from_xyz(position.x, position.y, position.z),
+        )
+    }
+
+    pub fn new_gate(
+        commands: &mut Commands, 
+        name: String,
+        symbol: String,
+        path: &Path,
+        x: f32, y: f32, 
+        in_range: NodeRange, 
+        out_range: NodeRange,
+        functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
+        font: Handle<Font>,
+    ) { 
+        let dists = Gate::get_distances(in_range.min as f32, out_range.min as f32);
+
+        let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
+
+        let gate = Gate::new_gate_body(Vec3::new(x, y, zidx), path);
+
+        let parent = commands
+            .spawn_bundle(gate)
+            .insert(Gate { 
+                symbol,
+                inputs: in_range.min,
+                outputs: out_range.min,
+                in_range,
+                out_range,
+                generic: false,
+            })
+            .insert(Name(name))
+            .insert(Inputs(vec![State::None; in_range.min as usize]))
+            .insert(Outputs(vec![State::None; out_range.min as usize]))
+            .insert(Transitions(functions))
+            .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
+            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(dists.width, dists.height), NODE_GROUP))
+            .insert(Selectable)
+            .insert(Draggable { update: true })
+            .id();
+
+        let mut entvec: Vec<Entity> = Vec::new();
+        for i in 1..=in_range.min {
+            entvec.push(Connector::new(commands, 
+                                       Vec3::new(-GATE_SIZE, dists.offset + i as f32 * dists.in_step, zidx), 
+                                       GATE_SIZE * 0.13, 
+                                       ConnectorType::In,
+                                       (i - 1) as usize));
+        }
+
+        commands.entity(parent).push_children(&entvec);
+        entvec.clear();
+
+        for i in 1..=out_range.min {
+            entvec.push(Connector::new(commands, 
+                                       Vec3::new(GATE_SIZE, dists.offset + i as f32 * dists.out_step, zidx), 
+                                       GATE_SIZE * 0.13, 
+                                       ConnectorType::Out,
+                                       (i - 1) as usize));
+        }
+        commands.entity(parent).push_children(&entvec);
+    }
 
     fn get_distances(cin: f32, cout: f32) -> GateSize {
         let factor = if cin >= cout { cin } else { cout };
@@ -182,7 +370,7 @@ impl Gate {
         }
     }
 
-    pub fn new_body(x: f32, y: f32, z: f32, width: f32, height: f32) -> ShapeBundle {
+    fn new_body(x: f32, y: f32, z: f32, width: f32, height: f32) -> ShapeBundle {
         let shape = shapes::Rectangle {
             width,
             height,
@@ -191,7 +379,7 @@ impl Gate {
 
         GeometryBuilder::build_as(
             &shape,
-            ShapeColors::outlined(Color::TEAL, Color::BLACK),
+            ShapeColors::outlined(Color::WHITE, Color::BLACK),
             DrawMode::Outlined {
                 fill_options: FillOptions::default(),
                 outline_options: StrokeOptions::default().with_line_width(10.0),
@@ -242,7 +430,8 @@ impl Gate {
                 inputs: in_range.min,
                 outputs: out_range.min,
                 in_range,
-                out_range
+                out_range,
+                generic: true,
             })
             .insert(Name(name))
             .insert(Inputs(vec![State::None; in_range.min as usize]))
@@ -319,6 +508,7 @@ impl Gate {
                 outputs: 1,
                 in_range: NodeRange { min: 1, max: 1 },
                 out_range: NodeRange { min: 1, max: 1 },
+                generic: true,
             })
             .insert(Name(name))
             .insert(Inputs(vec![state]))
@@ -334,8 +524,8 @@ impl Gate {
         
         let mut entvec: Vec<Entity> = Vec::new();
         entvec.push(Connector::new(commands, 
-                                   Vec3::new(75., dists.offset + dists.out_step, zidx), 
-                                   12., 
+                                   Vec3::new(GATE_SIZE, dists.offset + dists.out_step, zidx), 
+                                   GATE_SIZE * 0.13, 
                                    ConnectorType::Out,
                                    0));
         commands.entity(parent).push_children(&entvec);
@@ -345,9 +535,10 @@ impl Gate {
                     font: Handle<Font>,
                     position: Vec2
     ) {
-        Gate::new(commands, 
+        Gate::new_gate(commands, 
                   "NOT Gate".to_string(), 
                   "\u{00ac}1".to_string(),
+                  &Gate::not_gate_path().build(),
                   position.x, position.y, 
                   NodeRange { min: 1, max: 1 },
                   NodeRange { min: 1, max: 1 },
@@ -366,9 +557,10 @@ impl Gate {
                     font: Handle<Font>,
                     position: Vec2
     ) {
-        Gate::new(commands, 
+        Gate::new_gate(commands, 
                   "AND Gate".to_string(), 
                   "&".to_string(),
+                  &Gate::and_gate_path().build(),
                   position.x, position.y, 
                   NodeRange { min: 2, max: 16 },
                   NodeRange { min: 1, max: 1 },
@@ -391,9 +583,10 @@ impl Gate {
                     font: Handle<Font>,
                     position: Vec2
     ) {
-        Gate::new(commands, 
+        Gate::new_gate(commands, 
                   "NAND Gate".to_string(), 
                   "\u{00ac}&".to_string(),
+                  &Gate::nand_gate_path().build(),
                   position.x, position.y, 
                   NodeRange { min: 2, max: 16 },
                   NodeRange { min: 1, max: 1 },
@@ -416,9 +609,10 @@ impl Gate {
                     font: Handle<Font>,
                     position: Vec2
     ) {
-        Gate::new(commands, 
+        Gate::new_gate(commands, 
               "OR Gate".to_string(), 
               "≥1".to_string(),
+              &Gate::or_gate_path().build(),
               position.x, position.y, 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
@@ -441,9 +635,10 @@ impl Gate {
                     font: Handle<Font>,
                     position: Vec2
     ) {
-        Gate::new(commands, 
+        Gate::new_gate(commands, 
               "NOR Gate".to_string(), 
               "\u{00ac}≥1".to_string(),
+              &Gate::nor_gate_path().build(),
               position.x, position.y, 
               NodeRange { min: 2, max: 16 },
               NodeRange { min: 1, max: 1 },
@@ -454,6 +649,38 @@ impl Gate {
                         State::None => { ret = State::None; },
                         State::Low => {  },
                         State::High => { ret = State::Low; break; },
+                    }
+                  }
+                  ret
+              },],
+              font,
+        );
+    }
+
+    pub fn xor_gate(commands: &mut Commands, 
+                    font: Handle<Font>,
+                    position: Vec2
+    ) {
+        Gate::new_gate(commands, 
+              "XOR Gate".to_string(), 
+              "XOR".to_string(),
+              &Gate::xor_gate_path().build(),
+              position.x, position.y, 
+              NodeRange { min: 2, max: 16 },
+              NodeRange { min: 1, max: 1 },
+              trans![|inputs| {
+                  let mut ret = State::None;
+                  for i in inputs {
+                    match i {
+                        State::None => { },
+                        State::Low => {  },
+                        State::High => { 
+                            match ret {
+                                State::None => { ret = State::High; },
+                                State::Low => { ret = State::High; },
+                                State::High => { ret = State::Low; },
+                            }
+                        },
                     }
                   }
                   ret
@@ -618,12 +845,12 @@ impl Connector {
 
         let connector = GeometryBuilder::build_as(
             &circle,
-            ShapeColors::outlined(Color::TEAL, Color::BLACK),
+            ShapeColors::outlined(Color::WHITE, Color::BLACK),
             DrawMode::Outlined {
                 fill_options: FillOptions::default(),
                 outline_options: StrokeOptions::default().with_line_width(5.0),
             },
-            Transform::from_xyz(position.x, position.y, position.z),
+            Transform::from_xyz(position.x, position.y, 0.),
         );
 
         commands
@@ -1099,6 +1326,7 @@ fn handle_radial_menu_event_system(
                                     ("≥1".to_string(), "OR gate".to_string()),
                                     ("\u{00ac}≥1".to_string(), "NOR gate".to_string()),
                                     ("\u{00ac}1".to_string(), "NOT gate".to_string()),
+                                    ("XOR".to_string(), "XOR gate".to_string()),
                                 ]
                             }
                         );
@@ -1141,6 +1369,10 @@ fn handle_radial_menu_event_system(
                     },
                     5 => {
                         Gate::not_gate(&mut commands, font.main.clone(), ev.position);
+                        ms.0 = MenuStates::Idle;
+                    },
+                    6 => {
+                        Gate::xor_gate(&mut commands, font.main.clone(), ev.position);
                         ms.0 = MenuStates::Idle;
                     },
                     _ => {
@@ -1251,18 +1483,23 @@ fn change_input_system(
 
             let translation = transform.translation;
             let dists = Gate::get_distances(gate.inputs as f32, gate.outputs as f32);
-
-            // Update bounding box
-            interact.update_size(0., 0., dists.width, dists.height);
-
+            
             // Update input vector
             inputs.0.resize(gate.inputs as usize, State::None);
-
-            let gate = Gate::new_body(translation.x, translation.y, translation.z, dists.width, dists.height);
             
-            // Update body
-            commands.entity(ev.gate).remove_bundle::<ShapeBundle>();
-            commands.entity(ev.gate).insert_bundle(gate);
+            // If the logic component is generic it has a box as body.
+            // We are going to resize it in relation to the number
+            // of input connectors.
+            if gate.generic {
+                // Update bounding box
+                interact.update_size(0., 0., dists.width, dists.height);
+
+                let gate = Gate::new_body(translation.x, translation.y, translation.z, dists.width, dists.height);
+                
+                // Update body
+                commands.entity(ev.gate).remove_bundle::<ShapeBundle>();
+                commands.entity(ev.gate).insert_bundle(gate);
+            }
 
             // Update connectors attached to this gate
             let mut max = 0;
@@ -1271,7 +1508,7 @@ fn change_input_system(
                     if let Ok((conn, mut trans, conns)) = q_connector.get_mut(*connector) {
                         if conn.ctype == ConnectorType::In {
                             if conn.index < ev.to as usize {
-                                trans.translation = Vec3::new(-75., 
+                                trans.translation = Vec3::new(-GATE_SIZE, 
                                     dists.offset + (conn.index + 1) as f32 * dists.in_step, 
                                     translation.z); 
                                 if max < conn.index { max = conn.index; }
@@ -1300,8 +1537,8 @@ fn change_input_system(
             let mut entvec: Vec<Entity> = Vec::new();
             for i in (max + 2)..=ev.to as usize {
                 entvec.push(Connector::new(&mut commands, 
-                           Vec3::new(-75., dists.offset + i as f32 * dists.in_step, translation.z), 
-                           12., 
+                           Vec3::new(-GATE_SIZE, dists.offset + i as f32 * dists.in_step, translation.z), 
+                           GATE_SIZE * 0.13, 
                            ConnectorType::In,
                            (i - 1) as usize));
             }

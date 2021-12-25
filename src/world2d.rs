@@ -261,7 +261,7 @@ pub mod interaction2d {
     ) {
         if mb.just_pressed(MouseButton::Left) {
             let mut e: Option<Entity> = None;
-            let mut greatest: f32 = 0.;
+            let mut greatest: f32 = -1.;
             let mut group_id: u32 = 0;
             let mut drag: bool = false;
             let mut pos: Vec2 = Vec2::new(0., 0.);
