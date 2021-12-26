@@ -84,6 +84,7 @@ impl Plugin for NodeInGamePlugin {
                     // deleted by delete_line_system, i.e. we run it before any deletions
                     // to prevent an segfault.
                     .with_system(draw_line_system.system().label("draw_line").before("disconnect"))
+                    .with_system(light_bulb_system.system().before("disconnect"))
                     .with_system(line_selection_system.system().after("draw_line"))
                     .with_system(open_radial_menu_system.system())
                     .with_system(update_radial_menu_system.system())
@@ -146,11 +147,13 @@ struct GateSize {
     offset: f32,
 }
 
+struct LightBulb {
+    state: State,
+}
+
 static Z_INDEX: AtomicI32 = AtomicI32::new(1);
 
-
 impl Gate {
-
     fn and_gate_path() -> PathBuilder {
         let half = GATE_SIZE / 2.;
 
@@ -515,6 +518,63 @@ impl Gate {
         commands.entity(parent).push_children(&entvec);
     }
 
+    fn light_bulb_path() -> PathBuilder {
+        let radius = GATE_SIZE / 2.;
+        let mut path = PathBuilder::new();
+
+        path.move_to(Vec2::new(-radius, -radius)); 
+        path.line_to(Vec2::new(path.current_position().x, path.current_position().y + radius));
+        path.arc(
+            Vec2::new(0., 0.),
+            Vec2::new(
+                radius,
+                radius,
+            ),
+            -std::f32::consts::PI,
+            0.
+        );
+        path.line_to(Vec2::new(path.current_position().x, path.current_position().y - radius));
+        path.close();
+        path
+    }
+
+    pub fn light_bulb(
+        commands: &mut Commands, 
+        x: f32, y: f32,
+    ) {
+        let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
+
+        let light_bulb = GeometryBuilder::build_as(
+            &Gate::light_bulb_path().build(),
+            ShapeColors::outlined(Color::WHITE, Color::BLACK),
+            DrawMode::Outlined {
+                fill_options: FillOptions::default(),
+                outline_options: StrokeOptions::default().with_line_width(8.0),
+            },
+            Transform::from_xyz(x, y, z),
+        );
+
+        let parent = commands
+            .spawn_bundle(light_bulb)
+            .insert(LightBulb {
+                state: State::None,
+            })
+            .insert(Name("Light Bulb".to_string()))
+            .insert(Inputs(vec![State::None]))
+            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(GATE_SIZE, GATE_SIZE), NODE_GROUP))
+            .insert(Selectable)
+            .insert(Draggable { update: true })
+            .id();
+        
+        let child = Connector::new(commands, 
+                       Vec3::new(0., -GATE_SIZE, 0.), 
+                       GATE_SIZE * 0.13, 
+                       ConnectorType::In,
+                       0);
+
+        commands.entity(parent).push_children(&vec![child]);
+    }
+
     pub fn not_gate(commands: &mut Commands, 
                     position: Vec2
     ) {
@@ -735,13 +795,14 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
 
 
 fn setup(mut _commands: Commands, _font: Res<FontAssets>) {
+    Gate::light_bulb(&mut _commands, 400., 400.);
 }
 
 
 fn drag_gate_system(
     mut commands: Commands,
     mb: Res<Input<MouseButton>>,
-    q_dragged: Query<Entity, (With<Drag>, With<Gate>)>
+    q_dragged: Query<Entity, (With<Drag>, Or<(With<Gate>, With<LightBulb>)>)>
 ) {
     if mb.just_released(MouseButton::Left) {
         for dragged_gate in q_dragged.iter() {
@@ -754,7 +815,7 @@ fn delete_gate_system(
     mut commands: Commands,
     input_keyboard: Res<Input<KeyCode>>,
     mut ev_disconnect: EventWriter<DisconnectEvent>,
-    q_gate: Query<(Entity, &Children), (With<Selected>, With<Gate>)>,
+    q_gate: Query<(Entity, &Children), (With<Selected>, Or<(With<Gate>, With<LightBulb>)>)>,
     q_connectors: Query<&Connections>,
 ) {
     if input_keyboard.pressed(KeyCode::Delete) {
@@ -777,6 +838,35 @@ fn delete_gate_system(
 
             // Delete the gate itself
             commands.entity(entity).despawn_recursive();
+        }
+    }
+}
+
+fn light_bulb_system(
+    mut commands: Commands,
+    mut q_light: Query<(Entity, &Inputs, &mut LightBulb, &Transform)>,
+) {
+    for (entity, inputs, mut light, trans) in q_light.iter_mut() {
+        if inputs.0[0] != light.state {
+            let color = match inputs.0[0] {
+                State::High => Color::BLUE,
+                _ => Color::WHITE,
+            };
+
+            commands.entity(entity).remove_bundle::<ShapeBundle>();
+            commands.entity(entity).insert_bundle(
+                GeometryBuilder::build_as(
+                    &Gate::light_bulb_path().build(),
+                    ShapeColors::outlined(color, Color::BLACK),
+                    DrawMode::Outlined {
+                        fill_options: FillOptions::default(),
+                        outline_options: StrokeOptions::default().with_line_width(8.0),
+                    },
+                    Transform::from_xyz(trans.translation.x, trans.translation.y, trans.translation.z),
+                )
+            );
+
+            light.state = inputs.0[0];
         }
     }
 }
