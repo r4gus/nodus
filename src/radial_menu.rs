@@ -2,8 +2,6 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy_prototype_lyon::entity::ShapeBundle;
 
-use crate::{FontAssets};
-
 pub struct RadialMenu;
 
 impl Plugin for RadialMenu {
@@ -52,7 +50,6 @@ pub struct Menu {
 
 struct MenuItem {
     id: usize,
-    symbol: String,
     text: String,
     range: Vec2,
 }
@@ -71,8 +68,6 @@ fn create_menu_item_path(
     outer_radius: f32, 
     item_nr: usize
 ) -> PathBuilder {
-    let factor = inner_radius / outer_radius;
-
     let inner_point = Vec2::new(
         (radians_distance * (item_nr + 1) as f32).cos() * inner_radius, 
         (radians_distance * (item_nr + 1) as f32).sin() * inner_radius
@@ -159,7 +154,6 @@ fn open_menu_system(
                 )
                 .insert(MenuItem {
                     id: i,
-                    symbol: ev.items[i].0.clone(),
                     text: ev.items[i].1.clone(),
                     range: Vec2::new(
                         radians_distance * i as f32, 
@@ -280,7 +274,6 @@ fn update_system(
     mut q_menu: Query<(&Children, &mut Menu), ()>,
     q_item: Query<(Entity, &MenuItem)>,
     q_item_info: Query<(Entity, &Children), With<ItemInfo>>,
-    q_text: Query<Entity, With<Text2dBundle>>,
     asset_server: Res<AssetServer>,
 ) {
     if let Ok((children, mut menu)) = q_menu.single_mut() {
@@ -360,88 +353,3 @@ fn update_system(
         }
     }
 }
-
-/*
-struct ButtonMaterials {
-    normal: Handle<ColorMaterial>,
-    hovered: Handle<ColorMaterial>,
-    pressed: Handle<ColorMaterial>,
-}
-
-impl FromWorld for ButtonMaterials {
-    fn from_world(world: &mut World) -> Self {
-        let mut materials = world.get_resource_mut::<Assets<ColorMaterial>>().unwrap();
-        ButtonMaterials {
-            normal: materials.add(Color::rgb(0.15, 0.15, 0.15).into()),
-            hovered: materials.add(Color::rgb(0.25, 0.25, 0.25).into()),
-            pressed: materials.add(Color::rgb(0.35, 0.75, 0.35).into()),
-        }
-    }
-}
-
-fn button_system(
-    button_materials: Res<ButtonMaterials>,
-    mut interaction_query: Query<
-        (&Interaction, &mut Handle<ColorMaterial>, &Children),
-        (Changed<Interaction>, With<Button>),
-    >,
-    mut text_query: Query<&mut Text>,
-) {
-    for (interaction, mut material, children) in interaction_query.iter_mut() {
-        let mut text = text_query.get_mut(children[0]).unwrap();
-        match *interaction {
-            Interaction::Clicked => {
-                text.sections[0].value = "Press".to_string();
-                *material = button_materials.pressed.clone();
-            }
-            Interaction::Hovered => {
-                text.sections[0].value = "Hover".to_string();
-                *material = button_materials.hovered.clone();
-            }
-            Interaction::None => {
-                text.sections[0].value = "Button".to_string();
-                *material = button_materials.normal.clone();
-            }
-        }
-    }
-}
-
-fn setup(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    button_materials: Res<ButtonMaterials>,
-) {
-    let elements = 3;
-    let radius = 180.;
-    let radians_distance = (std::f32::consts::PI * 2.) / elements as f32;
-    let x = 600.;
-    let y = 600.;
-
-    // ui camera
-    commands.spawn_bundle(UiCameraBundle::default());
-    let parent = commands
-        .spawn()
-        .insert(Menu).id();
-
-    let mut entvec: Vec<Entity> = Vec::new();
-    for i in 0..elements as usize {
-        entvec.push(commands.spawn_bundle(Text2dBundle {
-            text: Text::with_section(
-                &format!("Button {}", i),
-                TextStyle {
-                    font: asset_server.load("fonts/hack.bold.ttf"),
-                    font_size: 40.0,
-                    color: Color::rgb(0.9, 0.9, 0.9),
-                },
-                TextAlignment {
-                    horizontal: HorizontalAlign::Center,
-                    ..Default::default()
-                },
-            ),
-            //transform: Transform::from_xyz(x * i as f32 + (radians_distance * i as f32).cos() * radius, y * i as f32 + (radians_distance * i as f32).sin() * radius, 100.),
-            ..Default::default()
-        }).id());
-    }
-    commands.entity(parent).push_children(&entvec);
-}
-*/

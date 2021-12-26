@@ -13,7 +13,6 @@ use crate::radial_menu::{
     PropagateSelectionEvent
 };
 
-pub struct NodePlugin;
 
 pub struct NodeInGamePlugin;
 
@@ -30,6 +29,8 @@ macro_rules! trans {
 }
 
 /*
+pub struct NodePlugin;
+
 impl Plugin for NodePlugin {
     fn build(&self, app: &mut AppBuilder) {
         // add things to the app here
@@ -112,21 +113,6 @@ pub enum State {
     None,
     High,
     Low,
-}
-
-/// System stages to group systems related to the
-/// node module.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
-enum NodeStages {
-    Update
-}
-
-/// Labels for the different systems of this module.
-/// The labels are used to force an explicit ordering
-/// between the systems when neccessary.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
-enum NodeLabels {
-    Transition
 }
 
 /// Type that maps form an (gate) entity to it's 
@@ -300,7 +286,6 @@ impl Gate {
         in_range: NodeRange, 
         out_range: NodeRange,
         functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
-        font: Handle<Font>,
     ) { 
         let dists = Gate::get_distances(in_range.min as f32, out_range.min as f32);
 
@@ -531,7 +516,6 @@ impl Gate {
     }
 
     pub fn not_gate(commands: &mut Commands, 
-                    font: Handle<Font>,
                     position: Vec2
     ) {
         Gate::new_gate(commands, 
@@ -548,12 +532,10 @@ impl Gate {
                         State::High => State::Low,
                     }
                   },],
-                  font,
         );
     }
 
     pub fn and_gate(commands: &mut Commands, 
-                    font: Handle<Font>,
                     position: Vec2
     ) {
         Gate::new_gate(commands, 
@@ -574,12 +556,10 @@ impl Gate {
                       }
                       ret
                   },],
-                  font,
         );
     }
 
     pub fn nand_gate(commands: &mut Commands, 
-                    font: Handle<Font>,
                     position: Vec2
     ) {
         Gate::new_gate(commands, 
@@ -600,12 +580,10 @@ impl Gate {
                       }
                       ret
                   },],
-                  font,
         );
     }
 
     pub fn or_gate(commands: &mut Commands, 
-                    font: Handle<Font>,
                     position: Vec2
     ) {
         Gate::new_gate(commands, 
@@ -626,12 +604,10 @@ impl Gate {
                   }
                   ret
               },],
-              font,
         );
     }
 
     pub fn nor_gate(commands: &mut Commands, 
-                    font: Handle<Font>,
                     position: Vec2
     ) {
         Gate::new_gate(commands, 
@@ -652,12 +628,10 @@ impl Gate {
                   }
                   ret
               },],
-              font,
         );
     }
 
     pub fn xor_gate(commands: &mut Commands, 
-                    font: Handle<Font>,
                     position: Vec2
     ) {
         Gate::new_gate(commands, 
@@ -684,7 +658,6 @@ impl Gate {
                   }
                   ret
               },],
-              font,
         );
     }
 
@@ -761,12 +734,7 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
 }
 
 
-fn setup(mut commands: Commands, font: Res<FontAssets>) {
-    Gate::not_gate(&mut commands, font.main.clone(), Vec2::new(0., 0.));
-    Gate::and_gate(&mut commands, font.main.clone(), Vec2::new(250., 0.));
-    Gate::or_gate(&mut commands, font.main.clone(), Vec2::new(500., 0.));
-    Gate::high_const(&mut commands, font.main.clone(), Vec2::new(200., -200.));
-    Gate::low_const(&mut commands, font.main.clone(), Vec2::new(-200., -200.));
+fn setup(mut _commands: Commands, _font: Res<FontAssets>) {
 }
 
 
@@ -871,16 +839,15 @@ impl Connector {
 /// Highlight a connector by increasing its radius when the mouse
 /// hovers over it.
 fn highlight_connector_system(
-    commands: Commands,
     // We need all connectors the mouse hovers over.
     mut q_hover: Query<&mut Transform, (With<Hover>, With<Connector>)>,
     mut q2_hover: Query<&mut Transform, (Without<Hover>, With<Connector>)>,
 ) { 
-    for (mut transform) in q_hover.iter_mut() {
+    for mut transform in q_hover.iter_mut() {
         transform.scale = Vec3::new(1.2, 1.2, transform.scale.z);
     }
 
-    for (mut transform) in q2_hover.iter_mut() {
+    for mut transform in q2_hover.iter_mut() {
         transform.scale = Vec3::new(1.0, 1.0, transform.scale.z);
     }
 }
@@ -902,8 +869,6 @@ fn drag_connector_system(
     q_drop: Query<(Entity, &Connector), (With<Hover>, With<Free>)>,
     mut ev_connect: EventWriter<ConnectEvent>,
 ) {
-    use bevy_prototype_lyon::entity::ShapeBundle;
-
     if let Ok((entity, transform, connector)) = q_dragged.single() {
         // If the LMB is released we check if we can connect two connectors.
         if mb.just_released(MouseButton::Left) {
@@ -1030,14 +995,14 @@ struct DisconnectEvent {
 fn disconnect_event(
     mut commands: Commands,
     mut ev_disconnect: EventReader<DisconnectEvent>,
-    mut q_line: Query<(&ConnectionLine)>,
+    q_line: Query<&ConnectionLine>,
     mut q_conn: Query<(&Parent, Entity, &mut Connections)>,
     mut q_parent: Query<&mut Targets>,
     mut q_input: Query<&mut Inputs>,
 ) {
     for ev in ev_disconnect.iter() {
         if let Ok(line) = q_line.get(ev.connection) {
-            let mut in_parent: Option<Entity> = None;
+            let in_parent: Option<Entity>;
 
             // Unlink input connector (right hand side)
             if let Ok((parent_in, entity_in, mut connections_in)) = q_conn.get_mut(line.input.entity) {
@@ -1057,7 +1022,7 @@ fn disconnect_event(
             }
 
             // Unlink output connector (left hand side)
-            if let Ok((parent_out, entity_out, mut connections_out)) = q_conn.get_mut(line.output.entity) {
+            if let Ok((parent_out, _entity_out, mut connections_out)) = q_conn.get_mut(line.output.entity) {
                 let parent = in_parent.expect("There should always bee a parent set");
                 
                 // Find and remove the given connection line.
@@ -1149,10 +1114,7 @@ fn draw_line_system(
     mut q_line: Query<(Entity, &mut ConnectionLine), ()>,
     q_transform: Query<(&Parent, &Connector, &GlobalTransform), ()>,
     q_outputs: Query<&Outputs, ()>,
-    q_children: Query<&Children>,
 ) {
-    use bevy_prototype_lyon::entity::ShapeBundle;
-
     for (entity, mut conn_line) in q_line.iter_mut() {
         if let Ok((t_parent, t_conn, t_from)) = q_transform.get(conn_line.output.entity) {
             // Set connection line color based on the value of the output.
@@ -1239,7 +1201,6 @@ fn line_selection_system(
 }
 
 fn delete_line_system(
-    mut commands: Commands,
     input_keyboard: Res<Input<KeyCode>>,
     mut ev_disconnect: EventWriter<DisconnectEvent>,
     q_line: Query<Entity, (With<Selected>, With<ConnectionLine>)>,
@@ -1270,7 +1231,6 @@ enum MenuStates {
 struct MenuState(MenuStates);
 
 fn open_radial_menu_system(
-    mut commands: Commands,
     mb: Res<Input<MouseButton>>,
     mw: Res<MouseWorldPos>,
     mut ms: ResMut<MenuState>,
@@ -1282,16 +1242,6 @@ fn open_radial_menu_system(
                 position: Vec2::new(mw.x, mw.y),
                 mouse_button: MouseButton::Left,
                 items: vec![
-                    /*
-                    ("x".to_string(), "close".to_string()),
-                    ("&".to_string(), "AND gate".to_string()),
-                    ("\u{00ac}&".to_string(), "NAND gate".to_string()),
-                    ("≥1".to_string(), "OR gate".to_string()),
-                    ("\u{00ac}≥1".to_string(), "NOR gate".to_string()),
-                    ("\u{00ac}1".to_string(), "NOT gate".to_string()),
-                    ("1".to_string(), "HIGH const".to_string()),
-                    ("0".to_string(), "LOW const".to_string()),
-                    */
                     ("x".to_string(), "close".to_string()),
                     ("Gates".to_string(), "Show Logic\nGates".to_string()),
                     ("Inputs".to_string(), "Show Input\nControls".to_string()),
@@ -1361,27 +1311,27 @@ fn handle_radial_menu_event_system(
             MenuStates::LogicGates => {
                 match ev.id {
                     1 => {
-                        Gate::and_gate(&mut commands, font.main.clone(), ev.position);
+                        Gate::and_gate(&mut commands, ev.position);
                         ms.0 = MenuStates::Idle;
                     },
                     2 => {
-                        Gate::nand_gate(&mut commands, font.main.clone(), ev.position);
+                        Gate::nand_gate(&mut commands, ev.position);
                         ms.0 = MenuStates::Idle;
                     },
                     3 => {
-                        Gate::or_gate(&mut commands, font.main.clone(), ev.position);
+                        Gate::or_gate(&mut commands, ev.position);
                         ms.0 = MenuStates::Idle;
                     },
                     4 => {
-                        Gate::nor_gate(&mut commands, font.main.clone(), ev.position);
+                        Gate::nor_gate(&mut commands, ev.position);
                         ms.0 = MenuStates::Idle;
                     },
                     5 => {
-                        Gate::not_gate(&mut commands, font.main.clone(), ev.position);
+                        Gate::not_gate(&mut commands, ev.position);
                         ms.0 = MenuStates::Idle;
                     },
                     6 => {
-                        Gate::xor_gate(&mut commands, font.main.clone(), ev.position);
+                        Gate::xor_gate(&mut commands, ev.position);
                         ms.0 = MenuStates::Idle;
                     },
                     _ => {
@@ -1480,11 +1430,9 @@ fn change_input_system(
     mut ev_connect: EventReader<ChangeInput>,
     mut ev_disconnect: EventWriter<DisconnectEvent>,
     mut q_gate: Query<(Entity, &mut Gate, &mut Inputs, &mut Interactable, &GlobalTransform)>,
-    mut q_connectors: Query<&Children>,
+    q_connectors: Query<&Children>,
     mut q_connector: Query<(&mut Connector, &mut Transform, &Connections)>,
 ) {
-    use bevy_prototype_lyon::entity::ShapeBundle;
-
     for ev in ev_connect.iter() {
         if let Ok((gent, mut gate, mut inputs, mut interact, transform)) = q_gate.get_mut(ev.gate) {
             // Update input count

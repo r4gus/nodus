@@ -1,5 +1,3 @@
-use bevy::prelude::*;
-
 pub mod camera2d {
     use bevy::prelude::*;
     use core::ops::{Deref, DerefMut};
@@ -79,7 +77,6 @@ pub mod camera2d {
     }
 
     pub fn pan_zoom_camera_system(
-        wnds: Res<Windows>,
         mut ev_motion: EventReader<MouseMotion>,
         mut ev_scroll: EventReader<MouseWheel>,
         input_mouse: Res<Input<MouseButton>>,
@@ -127,8 +124,6 @@ pub mod camera2d {
 pub mod interaction2d {
     use super::camera2d::MouseWorldPos;
     use bevy::prelude::*;
-    use core::ops::{Deref, DerefMut};
-    use std::collections::HashMap;
 
     pub struct Interaction2DPlugin;
     
@@ -262,14 +257,12 @@ pub mod interaction2d {
         if mb.just_pressed(MouseButton::Left) {
             let mut e: Option<Entity> = None;
             let mut greatest: f32 = -1.;
-            let mut group_id: u32 = 0;
             let mut drag: bool = false;
             let mut pos: Vec2 = Vec2::new(0., 0.);
 
-            for (entity, transform, interact, draggable) in q_select.iter() {
+            for (entity, transform, _interact, draggable) in q_select.iter() {
                 if transform.translation.z > greatest {
                     greatest = transform.translation.z;
-                    group_id = interact.group;
                     drag = if let Some(_) = draggable { true } else { false };
                     pos.x = transform.translation.x;
                     pos.y = transform.translation.y;

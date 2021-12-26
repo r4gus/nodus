@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy_egui::{EguiPlugin};
 use bevy_asset_loader::{AssetLoader, AssetCollection};
 
 mod node;
