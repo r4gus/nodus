@@ -59,7 +59,7 @@ struct ItemInfo;
 pub struct OpenMenuEvent {
     pub position: Vec2,
     pub mouse_button: MouseButton,
-    pub items: Vec<(String, String)>,
+    pub items: Vec<(Handle<ColorMaterial>, String, Vec2)>,
 }
 
 fn create_menu_item_path(
@@ -113,12 +113,6 @@ fn create_menu_item_visual(
     GeometryBuilder::build_as(
         &create_menu_item_path(radians_distance, inner_radius, outer_radius, item_nr).build(),
         ShapeColors::outlined(color, color),
-        /*
-        DrawMode::Outlined {
-            fill_options: FillOptions::default(),
-            outline_options: StrokeOptions::default().with_line_width(6.0),
-        },
-        */
         DrawMode::Fill(Default::default()),
         Transform::from_xyz(0., 0., 0.),
     )
@@ -160,26 +154,18 @@ fn open_menu_system(
                         radians_distance * (i + 1) as f32
                     ),
                 }).with_children(|parent| {
-                    parent.spawn_bundle(Text2dBundle {
-                        text: Text::with_section(
-                            &ev.items[i].0,
-                            TextStyle {
-                                font: asset_server.load("fonts/hack.bold.ttf"),
-                                font_size: 40.0,
-                                color: Color::BLACK,
-                            },
-                            TextAlignment {
-                                horizontal: HorizontalAlign::Center,
-                                ..Default::default()
-                            },
-                        ),
-                        transform: Transform::from_xyz(
-                            center.cos() * factor, 
-                            center.sin() * factor - 20.,
-                            1.
-                        ),
-                        ..Default::default()
-                    });
+                    parent.spawn_bundle(
+                        SpriteBundle {
+                            material: ev.items[i].0.clone(),
+                            sprite: Sprite::new(ev.items[i].2),
+                            transform: Transform::from_xyz(
+                                center.cos() * factor, 
+                                center.sin() * factor,
+                                1.
+                            ),
+                            ..Default::default()
+                        }
+                    );
                 }).id());
         }
 

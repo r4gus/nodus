@@ -26,6 +26,7 @@ fn main() {
 
     AssetLoader::new(GameState::AssetLoading, GameState::InGame)
         .with_collection::<FontAssets>()
+        .with_collection::<GateAssets>()
         .build(&mut app);
 
     app.add_state(GameState::AssetLoading)

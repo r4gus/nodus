@@ -1309,6 +1309,58 @@ fn delete_line_system(
 }
 
 // ############################# User Interface #########################################
+use bevy_asset_loader::{AssetLoader, AssetCollection};
+
+#[derive(AssetCollection)]
+pub struct GateAssets {
+    #[asset(color_material)]
+    #[asset(path = "gates/not.png")]
+    pub not: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/and.png")]
+    pub and: Handle<ColorMaterial>,
+    
+    #[asset(color_material)]
+    #[asset(path = "gates/nand.png")]
+    pub nand: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/or.png")]
+    pub or: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/nor.png")]
+    pub nor: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/xor.png")]
+    pub xor: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/back.png")]
+    pub back: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/close.png")]
+    pub close: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/circuit.png")]
+    pub circuit: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/inputs.png")]
+    pub inputs: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/high.png")]
+    pub high: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/low.png")]
+    pub low: Handle<ColorMaterial>,
+}
 
 #[derive(Debug, Eq, PartialEq)]
 enum MenuStates {
@@ -1323,6 +1375,7 @@ struct MenuState(MenuStates);
 fn open_radial_menu_system(
     mb: Res<Input<MouseButton>>,
     mw: Res<MouseWorldPos>,
+    assets: Res<GateAssets>,
     mut ms: ResMut<MenuState>,
     mut ev_open: EventWriter<OpenMenuEvent>,
 ) {
@@ -1332,9 +1385,9 @@ fn open_radial_menu_system(
                 position: Vec2::new(mw.x, mw.y),
                 mouse_button: MouseButton::Left,
                 items: vec![
-                    ("x".to_string(), "close".to_string()),
-                    ("Gates".to_string(), "Show Logic\nGates".to_string()),
-                    ("Inputs".to_string(), "Show Input\nControls".to_string()),
+                    (assets.close.clone(), "close".to_string(), Vec2::new(80., 80.)),
+                    (assets.circuit.clone(), "Show Logic\nGates".to_string(), Vec2::new(80., 80.)),
+                    (assets.inputs.clone(), "Show Input\nControls".to_string(), Vec2::new(80., 80.)),
                 ]
             }
         );
@@ -1357,6 +1410,7 @@ fn handle_radial_menu_event_system(
     mut ev_radial: EventReader<PropagateSelectionEvent>,
     mut ev_open: EventWriter<OpenMenuEvent>,
     font: Res<FontAssets>,
+    assets: Res<GateAssets>,
     mut ms: ResMut<MenuState>,
 ) {
     for ev in ev_radial.iter() {
@@ -1369,13 +1423,13 @@ fn handle_radial_menu_event_system(
                                 position: ev.position,
                                 mouse_button: MouseButton::Left,
                                 items: vec![
-                                    ("<-".to_string(), "back".to_string()),
-                                    ("&".to_string(), "AND gate".to_string()),
-                                    ("\u{00ac}&".to_string(), "NAND gate".to_string()),
-                                    ("≥1".to_string(), "OR gate".to_string()),
-                                    ("\u{00ac}≥1".to_string(), "NOR gate".to_string()),
-                                    ("\u{00ac}1".to_string(), "NOT gate".to_string()),
-                                    ("XOR".to_string(), "XOR gate".to_string()),
+                                    (assets.back.clone(), "back".to_string(), Vec2::new(80., 80.)),
+                                    (assets.and.clone(), "AND gate".to_string(), Vec2::new(100., 40.)),
+                                    (assets.nand.clone(), "NAND gate".to_string(), Vec2::new(100., 40.)),
+                                    (assets.or.clone(), "OR gate".to_string(), Vec2::new(100., 40.)),
+                                    (assets.nor.clone(), "NOR gate".to_string(), Vec2::new(100., 40.)),
+                                    (assets.not.clone(), "NOT gate".to_string(), Vec2::new(100., 40.)),
+                                    (assets.xor.clone(), "XOR gate".to_string(), Vec2::new(100., 40.)),
                                 ]
                             }
                         );
@@ -1387,9 +1441,9 @@ fn handle_radial_menu_event_system(
                                 position: ev.position,
                                 mouse_button: MouseButton::Left,
                                 items: vec![
-                                    ("<-".to_string(), "back".to_string()),
-                                    ("1".to_string(), "HIGH const".to_string()),
-                                    ("0".to_string(), "LOW const".to_string()),
+                                    (assets.back.clone(), "back".to_string(), Vec2::new(80., 80.)),
+                                    (assets.high.clone(), "HIGH const".to_string(), Vec2::new(80., 80.)),
+                                    (assets.low.clone(), "LOW const".to_string(), Vec2::new(80., 80.)),
                                 ]
                             }
                         );
@@ -1430,9 +1484,9 @@ fn handle_radial_menu_event_system(
                                 position: ev.position,
                                 mouse_button: MouseButton::Left,
                                 items: vec![
-                                    ("x".to_string(), "close".to_string()),
-                                    ("Gates".to_string(), "Show Logic\nGates".to_string()),
-                                    ("Inputs".to_string(), "Show Input\nControls".to_string()),
+                                    (assets.close.clone(), "close".to_string(), Vec2::new(80., 80.)),
+                                    (assets.circuit.clone(), "Show Logic\nGates".to_string(), Vec2::new(80., 80.)),
+                                    (assets.inputs.clone(), "Show Input\nControls".to_string(), Vec2::new(80., 80.)),
                                 ]
                             }
                         );
@@ -1457,9 +1511,9 @@ fn handle_radial_menu_event_system(
                                 position: ev.position,
                                 mouse_button: MouseButton::Left,
                                 items: vec![
-                                    ("x".to_string(), "close".to_string()),
-                                    ("Gates".to_string(), "Show Logic\nGates".to_string()),
-                                    ("Inputs".to_string(), "Show Input\nControls".to_string()),
+                                    (assets.close.clone(), "close".to_string(), Vec2::new(80., 80.)),
+                                    (assets.circuit.clone(), "Show Logic\nGates".to_string(), Vec2::new(80., 80.)),
+                                    (assets.inputs.clone(), "Show Input\nControls".to_string(), Vec2::new(80., 80.)),
                                 ]
                             }
                         );
