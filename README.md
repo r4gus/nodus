@@ -9,8 +9,11 @@ A graphical __logic gate simulator__.
 
 ## Features
 
+* Create nodes (gates, input controls, output controls) and connect them to
+  build simple circuits.
 * Radial Context Menu
 
 ## Credits
 
 * [The Bevy Engine](https://bevyengine.org/)
+* [Bevy Prototype Lyon](https://github.com/Nilirad/bevy_prototype_lyon)
