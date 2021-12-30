@@ -601,7 +601,10 @@ impl Gate {
             .spawn_bundle(switch)
             .insert(ToggleSwitch)
             .insert(Name("Toggle Switch".to_string()))
+            .insert(Inputs(vec![State::Low]))
             .insert(Outputs(vec![State::Low]))
+            .insert(Transitions(trans![|inputs| inputs[0]]))
+            .insert(Targets(vec![HashMap::new()]))
             .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(GATE_SIZE, GATE_SIZE), NODE_GROUP))
             .insert(Selectable)
             .insert(Draggable { update: true })
@@ -856,7 +859,9 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
 
 fn setup(mut _commands: Commands, _font: Res<FontAssets>, _gate: Res<GateAssets>) {
     Gate::light_bulb(&mut _commands, 400., 400.);
-    Gate::toggle_switch(&mut _commands, 400., - 400.);
+    Gate::light_bulb(&mut _commands, 400., -400.);
+    Gate::toggle_switch(&mut _commands, -400., 400.);
+    Gate::toggle_switch(&mut _commands, -400., - 400.);
 }
 
 
@@ -934,14 +939,14 @@ fn light_bulb_system(
 
 fn toggle_switch_system(
     mut commands: Commands,
-    mut q_outputs: Query<&mut Outputs>,
+    mut q_outputs: Query<&mut Inputs>,
     mut q_switch: Query<(&Parent, &mut Transform), (With<Hover>, With<Switch>)>,
     mb: Res<Input<MouseButton>>,
 ) {
     if mb.just_pressed(MouseButton::Left) {
         for (parent, mut transform) in q_switch.iter_mut() {
-            if let Ok(mut outputs) = q_outputs.get_mut(parent.0) {
-                let next = match outputs.0[0] {
+            if let Ok(mut inputs) = q_outputs.get_mut(parent.0) {
+                let next = match inputs.0[0] {
                     State::High => {
                         transform.translation.x -= GATE_SIZE / 2.;
                         State::Low
@@ -951,7 +956,7 @@ fn toggle_switch_system(
                         State::High
                     },
                 };
-                outputs.0[0] = next;
+                inputs.0[0] = next;
             }
         }
     }
