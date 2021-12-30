@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use nodus::world2d::camera2d::MouseWorldPos;
 use bevy_egui::{egui, EguiContext};
 use bevy_prototype_lyon::entity::ShapeBundle;
+use bevy_asset_loader::{AssetLoader, AssetCollection};
 use crate::{FontAssets, GameState};
 use crate::radial_menu::{
     OpenMenuEvent, 
@@ -27,35 +28,6 @@ macro_rules! trans {
         trans![ $( $fun ),* ]
     };
 }
-
-/*
-pub struct NodePlugin;
-
-impl Plugin for NodePlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        // add things to the app here
-        //.add_system(hello_world.system())
-        //.add_system(greet_node.system())
-        app.add_startup_system(setup.system())
-            .add_event::<ConnectEvent>()
-            .add_event::<ChangeInput>()
-            .add_event::<DisconnectEvent>()
-            .add_system(ui_node_info_system.system())
-            .add_system(delete_gate_system.system().label("delete"))
-            .add_system(change_input_system.system().label("change"))
-            .add_system(disconnect_event.system().label("disconnect").after("delete").after("change"))
-            .add_system(transition_system.system().label("transition").after("disconnect"))
-            .add_system(propagation_system.system().after("transition").after("disconnect"))
-            .add_system(highlight_connector_system.system().after("disconnect"))
-            .add_system(drag_gate_system.system().after("disconnect"))
-            .add_system(drag_connector_system.system().label("drag_conn_system").after("disconnect"))
-            .add_system(connect_nodes.system().after("drag_conn_system").after("disconnect"))
-            .add_system(draw_line_system.system().after("disconnect"));
-        
-        info!("NodePlugin loaded");
-    }
-}
-*/
 
 impl Plugin for NodeInGamePlugin {
     fn build(&self, app: &mut AppBuilder) {
@@ -85,6 +57,7 @@ impl Plugin for NodeInGamePlugin {
                     // to prevent an segfault.
                     .with_system(draw_line_system.system().label("draw_line").before("disconnect"))
                     .with_system(light_bulb_system.system().before("disconnect"))
+                    .with_system(toggle_switch_system.system().before("disconnect"))
                     .with_system(line_selection_system.system().after("draw_line"))
                     .with_system(open_radial_menu_system.system())
                     .with_system(update_radial_menu_system.system())
@@ -150,6 +123,9 @@ struct GateSize {
 struct LightBulb {
     state: State,
 }
+
+struct ToggleSwitch;
+struct Switch;
 
 static Z_INDEX: AtomicI32 = AtomicI32::new(1);
 
@@ -268,13 +244,43 @@ impl Gate {
         Gate::invert(Gate::xor_gate_path())
     }
 
+    fn toggle_switch_path_a() -> PathBuilder {
+        let radius = GATE_SIZE / 4.; 
+        let mut path = PathBuilder::new();
+
+        path.move_to(Vec2::new(-radius, -radius));
+        path.arc(
+            Vec2::new(-radius, 0.),
+            Vec2::new(
+                radius,
+                radius,
+            ),
+            -std::f32::consts::PI,
+            0.
+        );
+        path.line_to(Vec2::new(radius, radius));
+        path.arc(
+            Vec2::new(radius, 0.),
+            Vec2::new(
+                radius,
+                radius,
+            ),
+            -std::f32::consts::PI,
+            0.
+        );
+        path.close();
+        path
+    }
+
     fn new_gate_body(position: Vec3, path: PathBuilder) -> ShapeBundle {
         GeometryBuilder::build_as(
             &path.build(),
             ShapeColors::outlined(Color::WHITE, Color::BLACK),
             DrawMode::Outlined {
                 fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default().with_line_width(6.0),
+                outline_options: StrokeOptions::default()
+                    .with_line_width(6.0)
+                    .with_line_join(LineJoin::MiterClip),
             },
             Transform::from_xyz(position.x, position.y, position.z),
         )
@@ -575,6 +581,60 @@ impl Gate {
         commands.entity(parent).push_children(&vec![child]);
     }
 
+    pub fn toggle_switch(
+        commands: &mut Commands, 
+        x: f32, y: f32,
+    ) {
+        let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
+
+        let switch = GeometryBuilder::build_as(
+            &Gate::toggle_switch_path_a().build(),
+            ShapeColors::outlined(Color::WHITE, Color::BLACK),
+            DrawMode::Outlined {
+                fill_options: FillOptions::default(),
+                outline_options: StrokeOptions::default().with_line_width(8.0),
+            },
+            Transform::from_xyz(x, y, z),
+        );
+
+        let parent = commands
+            .spawn_bundle(switch)
+            .insert(ToggleSwitch)
+            .insert(Name("Toggle Switch".to_string()))
+            .insert(Outputs(vec![State::Low]))
+            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(GATE_SIZE, GATE_SIZE), NODE_GROUP))
+            .insert(Selectable)
+            .insert(Draggable { update: true })
+            .id();
+        
+        let child = Connector::new(commands, 
+                       Vec3::new(GATE_SIZE, 0., 0.), 
+                       GATE_SIZE * 0.13, 
+                       ConnectorType::Out,
+                       0);
+
+        let nod = GeometryBuilder::build_as(
+            &shapes::Circle {
+                radius: GATE_SIZE / 4.,
+                center: Vec2::new(0., 0.),
+            },
+            ShapeColors::outlined(Color::WHITE, Color::BLACK),
+            DrawMode::Outlined {
+                fill_options: FillOptions::default(),
+                outline_options: StrokeOptions::default().with_line_width(8.0),
+            },
+            Transform::from_xyz(-GATE_SIZE / 4., 0., z + 1.),
+        );
+
+        let nod_child = commands
+            .spawn_bundle(nod)
+            .insert(Switch)
+            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(GATE_SIZE / 2., GATE_SIZE / 2.), NODE_GROUP))
+            .id();
+
+        commands.entity(parent).push_children(&vec![child, nod_child]);
+    }
+
     pub fn not_gate(commands: &mut Commands, 
                     position: Vec2
     ) {
@@ -794,15 +854,16 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
 }
 
 
-fn setup(mut _commands: Commands, _font: Res<FontAssets>) {
+fn setup(mut _commands: Commands, _font: Res<FontAssets>, _gate: Res<GateAssets>) {
     Gate::light_bulb(&mut _commands, 400., 400.);
+    Gate::toggle_switch(&mut _commands, 400., - 400.);
 }
 
 
 fn drag_gate_system(
     mut commands: Commands,
     mb: Res<Input<MouseButton>>,
-    q_dragged: Query<Entity, (With<Drag>, Or<(With<Gate>, With<LightBulb>)>)>
+    q_dragged: Query<Entity, (With<Drag>, Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>)>)>
 ) {
     if mb.just_released(MouseButton::Left) {
         for dragged_gate in q_dragged.iter() {
@@ -815,7 +876,7 @@ fn delete_gate_system(
     mut commands: Commands,
     input_keyboard: Res<Input<KeyCode>>,
     mut ev_disconnect: EventWriter<DisconnectEvent>,
-    q_gate: Query<(Entity, &Children), (With<Selected>, Or<(With<Gate>, With<LightBulb>)>)>,
+    q_gate: Query<(Entity, &Children), (With<Selected>, Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>)>)>,
     q_connectors: Query<&Connections>,
 ) {
     if input_keyboard.pressed(KeyCode::Delete) {
@@ -867,6 +928,31 @@ fn light_bulb_system(
             );
 
             light.state = inputs.0[0];
+        }
+    }
+}
+
+fn toggle_switch_system(
+    mut commands: Commands,
+    mut q_outputs: Query<&mut Outputs>,
+    mut q_switch: Query<(&Parent, &mut Transform), (With<Hover>, With<Switch>)>,
+    mb: Res<Input<MouseButton>>,
+) {
+    if mb.just_pressed(MouseButton::Left) {
+        for (parent, mut transform) in q_switch.iter_mut() {
+            if let Ok(mut outputs) = q_outputs.get_mut(parent.0) {
+                let next = match outputs.0[0] {
+                    State::High => {
+                        transform.translation.x -= GATE_SIZE / 2.;
+                        State::Low
+                    },
+                    _ => {
+                        transform.translation.x += GATE_SIZE / 2.;
+                        State::High
+                    },
+                };
+                outputs.0[0] = next;
+            }
         }
     }
 }
@@ -1309,8 +1395,6 @@ fn delete_line_system(
 }
 
 // ############################# User Interface #########################################
-use bevy_asset_loader::{AssetLoader, AssetCollection};
-
 #[derive(AssetCollection)]
 pub struct GateAssets {
     #[asset(color_material)]
