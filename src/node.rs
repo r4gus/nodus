@@ -493,86 +493,6 @@ impl Gate {
             Transform::from_xyz(position.x, position.y, position.z),
         )
     }
-    
-    /*
-    pub fn new(
-        commands: &mut Commands, 
-        name: String,
-        symbol: String,
-        x: f32, y: f32, 
-        in_range: NodeRange, 
-        out_range: NodeRange,
-        functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
-        font: Handle<Font>,
-    ) { 
-        let dists = Gate::get_distances(in_range.min as f32, out_range.min as f32);
-
-        let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
-
-        let gate = Gate::new_body(x, y, zidx, dists.width, dists.height);
-
-        let sym_text = commands.spawn_bundle(
-                Text2dBundle {
-                    text: Text::with_section(
-                        &symbol,
-                        TextStyle {
-                            font: font.clone(),
-                            font_size: 30.0,
-                            color: Color::BLACK,
-                        },
-                        TextAlignment {
-                            horizontal: HorizontalAlign::Center,
-                            ..Default::default()
-                        },
-                    ),
-                    transform: Transform::from_xyz(0., 0., zidx),
-                    ..Default::default()
-                }
-            ).id();
-
-        let parent = commands
-            .spawn_bundle(gate)
-            .insert(Gate { 
-                inputs: in_range.min,
-                outputs: out_range.min,
-                in_range,
-                out_range,
-                generic: true,
-            })
-            .insert(Name(name))
-            .insert(Inputs(vec![State::None; in_range.min as usize]))
-            .insert(Outputs(vec![State::None; out_range.min as usize]))
-            .insert(Transitions(functions))
-            .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
-            .insert(Interactable::new(Vec2::new(0., 0.), Vec2::new(dists.width, dists.height), NODE_GROUP))
-            .insert(Selectable)
-            .insert(Draggable { update: true })
-            .id();
-
-        commands.entity(parent).push_children(&[sym_text]);
-        
-        let mut entvec: Vec<Entity> = Vec::new();
-        for i in 1..=in_range.min {
-            entvec.push(Connector::new(commands, 
-                                       Vec3::new(-75., dists.offset + i as f32 * dists.in_step, zidx), 
-                                       12., 
-                                       ConnectorType::In,
-                                       (i - 1) as usize));
-        }
-
-        commands.entity(parent).push_children(&entvec);
-        entvec.clear();
-
-        for i in 1..=out_range.min {
-            entvec.push(Connector::new(commands, 
-                                       Vec3::new(75., dists.offset + i as f32 * dists.out_step, zidx), 
-                                       12., 
-                                       ConnectorType::Out,
-                                       (i - 1) as usize));
-        }
-        commands.entity(parent).push_children(&entvec);
-    }
-    */
 
     pub fn constant(
         commands: &mut Commands, 
@@ -969,13 +889,6 @@ fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Que
 
 
 fn setup(mut _commands: Commands, _font: Res<FontAssets>, _gate: Res<GateAssets>) {
-    use bevy_prototype_lyon::shapes::SvgPathShape;
-
-    Gate::light_bulb(&mut _commands, 400., 400.);
-    Gate::light_bulb(&mut _commands, 400., -400.);
-    Gate::toggle_switch(&mut _commands, -400., 400.);
-    Gate::toggle_switch(&mut _commands, -400., - 400.);
-    Gate::toggle_switch(&mut _commands, -400., - 200.);
 }
 
 
@@ -1132,7 +1045,7 @@ impl Connector {
             &line,
             ShapeColors::new(Color::BLACK),
             DrawMode::Stroke(StrokeOptions::default().with_line_width(6.0)),
-            Transform::from_xyz(0., 0., 0.),
+            Transform::from_xyz(0., 0., -1.),
         );
         
         let line_id = commands.spawn_bundle(line_conn).id();
@@ -1563,8 +1476,12 @@ pub struct GateAssets {
     pub circuit: Handle<ColorMaterial>,
 
     #[asset(color_material)]
-    #[asset(path = "gates/inputs.png")]
+    #[asset(path = "gates/in.png")]
     pub inputs: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/out.png")]
+    pub outputs: Handle<ColorMaterial>,
 
     #[asset(color_material)]
     #[asset(path = "gates/high.png")]
@@ -1573,6 +1490,14 @@ pub struct GateAssets {
     #[asset(color_material)]
     #[asset(path = "gates/low.png")]
     pub low: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/toggle.png")]
+    pub toggle: Handle<ColorMaterial>,
+
+    #[asset(color_material)]
+    #[asset(path = "gates/bulb.png")]
+    pub bulb: Handle<ColorMaterial>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -1580,7 +1505,8 @@ enum MenuStates {
     Idle,
     Select,
     LogicGates,
-    Inputs
+    Inputs,
+    Outputs
 }
 
 struct MenuState(MenuStates);
@@ -1601,6 +1527,7 @@ fn open_radial_menu_system(
                     (assets.close.clone(), "close".to_string(), Vec2::new(80., 80.)),
                     (assets.circuit.clone(), "Show Logic\nGates".to_string(), Vec2::new(80., 80.)),
                     (assets.inputs.clone(), "Show Input\nControls".to_string(), Vec2::new(80., 80.)),
+                    (assets.outputs.clone(), "Show Output\nControls".to_string(), Vec2::new(80., 80.)),
                 ]
             }
         );
@@ -1657,10 +1584,24 @@ fn handle_radial_menu_event_system(
                                     (assets.back.clone(), "back".to_string(), Vec2::new(80., 80.)),
                                     (assets.high.clone(), "HIGH const".to_string(), Vec2::new(80., 80.)),
                                     (assets.low.clone(), "LOW const".to_string(), Vec2::new(80., 80.)),
+                                    (assets.toggle.clone(), "Toggle Switch".to_string(), Vec2::new(80., 80.)),
                                 ]
                             }
                         );
                         ms.0 = MenuStates::Inputs;
+                    },
+                    3 => {
+                        ev_open.send(
+                            OpenMenuEvent {
+                                position: ev.position,
+                                mouse_button: MouseButton::Left,
+                                items: vec![
+                                    (assets.back.clone(), "back".to_string(), Vec2::new(80., 80.)),
+                                    (assets.bulb.clone(), "Light Bulb".to_string(), Vec2::new(80., 80.)),
+                                ]
+                            }
+                        );
+                        ms.0 = MenuStates::Outputs;
                     },
                     _ => { ms.0 = MenuStates::Idle; }
                 }
@@ -1700,6 +1641,7 @@ fn handle_radial_menu_event_system(
                                     (assets.close.clone(), "close".to_string(), Vec2::new(80., 80.)),
                                     (assets.circuit.clone(), "Show Logic\nGates".to_string(), Vec2::new(80., 80.)),
                                     (assets.inputs.clone(), "Show Input\nControls".to_string(), Vec2::new(80., 80.)),
+                                    (assets.outputs.clone(), "Show Output\nControls".to_string(), Vec2::new(80., 80.)),
                                 ]
                             }
                         );
@@ -1718,6 +1660,10 @@ fn handle_radial_menu_event_system(
                         Gate::low_const(&mut commands, font.main.clone(), ev.position);
                         ms.0 = MenuStates::Idle;
                     },
+                    3 => {
+                        Gate::toggle_switch(&mut commands, ev.position.x, ev.position.y);
+                        ms.0 = MenuStates::Idle;
+                    },
                     _ => {
                         ev_open.send(
                             OpenMenuEvent {
@@ -1727,6 +1673,31 @@ fn handle_radial_menu_event_system(
                                     (assets.close.clone(), "close".to_string(), Vec2::new(80., 80.)),
                                     (assets.circuit.clone(), "Show Logic\nGates".to_string(), Vec2::new(80., 80.)),
                                     (assets.inputs.clone(), "Show Input\nControls".to_string(), Vec2::new(80., 80.)),
+                                    (assets.outputs.clone(), "Show Output\nControls".to_string(), Vec2::new(80., 80.)),
+                                ]
+                            }
+                        );
+
+                        ms.0 = MenuStates::Select;
+                    }
+                }
+            },
+            MenuStates::Outputs => {
+                match ev.id {
+                    1 => {
+                        Gate::light_bulb(&mut commands, ev.position.x, ev.position.y);
+                        ms.0 = MenuStates::Idle;
+                    },
+                    _ => {
+                        ev_open.send(
+                            OpenMenuEvent {
+                                position: ev.position,
+                                mouse_button: MouseButton::Left,
+                                items: vec![
+                                    (assets.close.clone(), "close".to_string(), Vec2::new(80., 80.)),
+                                    (assets.circuit.clone(), "Show Logic\nGates".to_string(), Vec2::new(80., 80.)),
+                                    (assets.inputs.clone(), "Show Input\nControls".to_string(), Vec2::new(80., 80.)),
+                                    (assets.outputs.clone(), "Show Output\nControls".to_string(), Vec2::new(80., 80.)),
                                 ]
                             }
                         );
