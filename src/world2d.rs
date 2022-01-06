@@ -244,7 +244,7 @@ pub mod interaction2d {
     pub fn selection_system(
         mut commands: Commands,
         mw: Res<MouseWorldPos>,
-        mb: Res<Input<MouseButton>>,
+        mb: ResMut<Input<MouseButton>>,
         // query all entities that are selectable and that 
         // the mouse currently hovers over.
         q_select: Query<
