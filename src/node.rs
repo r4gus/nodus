@@ -1503,32 +1503,17 @@ fn line_selection_system(
     q_selected: Query<Entity, With<Selected>>,
 ) {
     if mb.just_pressed(MouseButton::Left) {
-        'outer: for (entity, conn_line) in q_line.iter() {
-            for i in 0..(conn_line.via.len() - 1) {
-                let (x1, x2) = if conn_line.via[i].x <= conn_line.via[i + 1].x {
-                    (conn_line.via[i].x, conn_line.via[i + 1].x)
-                } else {
-                    (conn_line.via[i + 1].x, conn_line.via[i].x)
-                };
-
-                let (y1, y2) = if conn_line.via[i].y <= conn_line.via[i + 1].y {
-                    (conn_line.via[i].y, conn_line.via[i + 1].y)
-                } else {
-                    (conn_line.via[i + 1].y, conn_line.via[i].y)
-                };
-
-                if mw.x >= (x1 - 10.0)
-                    && mw.x <= (x2 + 10.0)
-                    && mw.y >= (y1 - 10.0)
-                    && mw.y <= (y2 + 10.0)
-                {
-                    for entity in q_selected.iter() {
-                        commands.entity(entity).remove::<Selected>();
-                    }
-                    eprintln!("in");
-                    commands.entity(entity).insert(Selected);
-                    break 'outer;
-                }
+        for (entity, line) in q_line.iter() {
+            if let Some(_) = t_for_point(
+                Vec2::new(mw.x, mw.y), 
+                line.via[0].clone(), 
+                line.via[1].clone(),
+                line.via[2].clone(),
+                line.via[3].clone()
+            ) {
+                eprintln!("in");
+                commands.entity(entity).insert(Selected);
+                break;
             }
         }
     }
@@ -1550,6 +1535,9 @@ fn delete_line_system(
     }
 }
 
+/// Sameple the cubic bezier curve, defined by s` (start),
+/// `c1` (control point 1), `c2` (control point 2) and `e` (end),
+/// at `t` (expecting t between 0 and 1);
 fn qubic_bezier_point(t: f32, s: Vec2, c1: Vec2, c2: Vec2, e: Vec2) -> Vec2 {
     let u = 1. - t;
     let tt = t * t;
@@ -1562,6 +1550,40 @@ fn qubic_bezier_point(t: f32, s: Vec2, c1: Vec2, c2: Vec2, e: Vec2) -> Vec2 {
     p += c2 * 3. * u * tt;
     p += e * ttt;
     p
+}
+
+/// Solve t for a point `xy` on a qubic bezier curve defined by `s` (start),
+/// `c1` (control point 1), `c2` (control point 2) and `e` (end).
+///
+/// This is just a approximation and can be used to check if a user clicked
+/// on a qubic bezier curve.
+fn t_for_point(xy: Vec2, s: Vec2, c1: Vec2, c2: Vec2, e: Vec2) -> Option<f32> {
+    use lyon_geom::*;
+    
+    const epsilon: f32 = 16.;
+    let c = CubicBezierSegment {
+        from: Point::new(s.x, s.y),
+        ctrl1: Point::new(c1.x, c1.y),
+        ctrl2: Point::new(c2.x, c2.y),
+        to: Point::new(e.x, e.y),
+    };
+
+    let possible_t_values_x = c.solve_t_for_x(xy.x);
+    let possible_t_values_y = c.solve_t_for_y(xy.y);
+
+    for t in possible_t_values_x {
+        if t >= -0.001 && t <= 1.001 {
+            let p = c.sample(t);
+
+            let offset = p - Point::new(xy.x, xy.y);
+            let dot = offset.x * offset.x + offset.y * offset.y;
+            if dot <= epsilon * epsilon {
+                return Some(t);
+            }
+        }
+    }
+
+    None
 }
 
 struct LineResource {

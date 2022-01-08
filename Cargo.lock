@@ -2518,6 +2518,7 @@ dependencies = [
  "bevy_asset_loader",
  "bevy_egui",
  "bevy_prototype_lyon",
+ "lyon_geom",
 ]
 
 [[package]]
