@@ -1,7 +1,7 @@
 pub mod camera2d {
+    use bevy::input::mouse::{MouseMotion, MouseWheel};
     use bevy::prelude::*;
     use core::ops::{Deref, DerefMut};
-    use bevy::input::mouse::{MouseMotion, MouseWheel};
 
     pub struct Camera2DPlugin;
 
@@ -16,7 +16,7 @@ pub mod camera2d {
 
     /// Used to help identify the main camera.
     pub struct MainCamera;
-    
+
     /// Position resource of the mouse cursor within the 2d world.
     pub struct MouseWorldPos(pub Vec2);
 
@@ -41,7 +41,7 @@ pub mod camera2d {
             .spawn_bundle(OrthographicCameraBundle::new_2d())
             .insert(MainCamera);
     }
-    
+
     /// Calculate the cursor position within a 2d world.
     /// This updates the MouseWorldPos resource.
     pub fn cursor_system(
@@ -50,7 +50,7 @@ pub mod camera2d {
         // need to update the mouse world position.
         mut mw: ResMut<MouseWorldPos>,
         // query to get camera transform.
-        q_camera: Query<&Transform, With<MainCamera>>
+        q_camera: Query<&Transform, With<MainCamera>>,
     ) {
         // get the primary window.
         let wnd = wnds.get_primary().unwrap();
@@ -68,8 +68,7 @@ pub mod camera2d {
             let camera_transform = q_camera.single().unwrap();
 
             // apply the camera transform.
-            let pos_wld = camera_transform
-                .compute_matrix() * p.extend(0.).extend(1.);
+            let pos_wld = camera_transform.compute_matrix() * p.extend(0.).extend(1.);
             //eprintln!("{}:{}", pos_wld.x, pos_wld.y);
             mw.x = pos_wld.x;
             mw.y = pos_wld.y;
@@ -81,7 +80,7 @@ pub mod camera2d {
         mut ev_scroll: EventReader<MouseWheel>,
         input_mouse: Res<Input<MouseButton>>,
         input_keyboard: Res<Input<KeyCode>>,
-        mut q_camera: Query<&mut Transform, With<MainCamera>>
+        mut q_camera: Query<&mut Transform, With<MainCamera>>,
     ) {
         // change input mapping for panning here.
         let pan_button = MouseButton::Middle;
@@ -102,7 +101,6 @@ pub mod camera2d {
 
         // assuming there is exacly one main camera entity, so this is ok.
         if let Ok(mut transform) = q_camera.single_mut() {
-            
             if pan.length_squared() > 0.0 {
                 let scale = transform.scale.x;
                 transform.translation.x -= pan.x * scale;
@@ -126,7 +124,7 @@ pub mod interaction2d {
     use bevy::prelude::*;
 
     pub struct Interaction2DPlugin;
-    
+
     impl Plugin for Interaction2DPlugin {
         fn build(&self, app: &mut AppBuilder) {
             app.add_system_set(
@@ -134,18 +132,18 @@ pub mod interaction2d {
                     .label("interaction2d")
                     .with_system(interaction_system.system().label("interaction"))
                     .with_system(selection_system.system().after("interaction"))
-                    .with_system(drag_system.system())
+                    .with_system(drag_system.system()),
             );
         }
     }
-    
+
     /// Marker component for selected entities.
     #[derive(Debug)]
     pub struct Selected;
 
     /// Component that marks an entity as selectable.
     pub struct Selectable;
-    
+
     /// Component that marks an entity interactable.
     pub struct Interactable {
         /// The bounding box defines the area where the mouse
@@ -156,7 +154,7 @@ pub mod interaction2d {
         /// everything.
         group: u32,
     }
-    
+
     impl Interactable {
         /// Create a new interactable component.
         ///
@@ -169,28 +167,33 @@ pub mod interaction2d {
         /// The `position` marks the center of the bounding box.
         pub fn new(position: Vec2, dimensions: Vec2, group: u32) -> Self {
             Self {
-                bounding_box: (Vec2::new(position.x - dimensions.x / 2., 
-                               position.y - dimensions.y / 2.), dimensions),
-                group
+                bounding_box: (
+                    Vec2::new(
+                        position.x - dimensions.x / 2.,
+                        position.y - dimensions.y / 2.,
+                    ),
+                    dimensions,
+                ),
+                group,
             }
         }
 
         pub fn update_size(&mut self, x: f32, y: f32, width: f32, height: f32) {
             self.bounding_box.0 = Vec2::new(x - width / 2., y - height / 2.);
-            self.bounding_box.1 = Vec2::new(width, height); 
+            self.bounding_box.1 = Vec2::new(width, height);
         }
-        
+
         /// Update the position of the bounding box within the world.
         pub fn update_pos(&mut self, x: f32, y: f32) {
             self.bounding_box.0.x = x;
             self.bounding_box.0.y = y;
         }
     }
-    
+
     /// Marker component to indicate that the mouse
     /// currently hovers over the given entity.
     pub struct Hover;
-    
+
     /// Component that marks an entity as draggable.
     pub struct Draggable {
         /// The drag system should automatically update
@@ -220,24 +223,28 @@ pub mod interaction2d {
         // we need the mouse position within the world.
         mw: Res<MouseWorldPos>,
         // query to get all interactable entities.
-        q_interact: Query<(Entity, &Interactable, &GlobalTransform)>
+        q_interact: Query<(Entity, &Interactable, &GlobalTransform)>,
     ) {
         for (entity, interactable, transform) in q_interact.iter() {
-            if mw.x >= transform.translation.x + interactable.bounding_box.0.x &&
-                mw.x <= transform.translation.x + interactable.bounding_box.0.x + 
-                    interactable.bounding_box.1.x &&
-                mw.y >= transform.translation.y + interactable.bounding_box.0.y &&
-                mw.y <= transform.translation.y + interactable.bounding_box.0.y + 
-                    interactable.bounding_box.1.y 
+            if mw.x >= transform.translation.x + interactable.bounding_box.0.x
+                && mw.x
+                    <= transform.translation.x
+                        + interactable.bounding_box.0.x
+                        + interactable.bounding_box.1.x
+                && mw.y >= transform.translation.y + interactable.bounding_box.0.y
+                && mw.y
+                    <= transform.translation.y
+                        + interactable.bounding_box.0.y
+                        + interactable.bounding_box.1.y
             {
-                //eprintln!("hover {:?}", entity);    
+                //eprintln!("hover {:?}", entity);
                 commands.entity(entity).insert(Hover);
             } else {
                 commands.entity(entity).remove::<Hover>();
             }
         }
     }
-    
+
     /// Select interactable elements.
     ///
     /// A left click on an interactable entity will move it into its dedicated group.
@@ -245,12 +252,12 @@ pub mod interaction2d {
         mut commands: Commands,
         mw: Res<MouseWorldPos>,
         mb: ResMut<Input<MouseButton>>,
-        // query all entities that are selectable and that 
+        // query all entities that are selectable and that
         // the mouse currently hovers over.
         q_select: Query<
-            (Entity, &Transform, &Interactable, Option<&Draggable>), 
+            (Entity, &Transform, &Interactable, Option<&Draggable>),
             // Filter
-            (With<Selectable>, With<Hover>)
+            (With<Selectable>, With<Hover>),
         >,
         q_selected: Query<Entity, With<Selected>>,
     ) {
@@ -269,24 +276,31 @@ pub mod interaction2d {
                     e = Some(entity);
                 }
             }
-            
+
+            let mut entities = Vec::new();
+            for entity in q_selected.iter() {
+                entities.push(entity);
+            }
+
+            for entity in entities {
+                commands.entity(entity).remove::<Selected>();
+            }
 
             if let Some(entity) = e {
-                for entity in q_selected.iter() {
-                    commands.entity(entity).remove::<Selected>();
+                if drag {
+                    commands.entity(entity).insert(Drag {
+                        click_offset: pos - **mw,
+                    });
                 }
 
-                if drag {
-                    commands.entity(entity).insert(Drag { click_offset: pos - **mw });
-                }
                 commands.entity(entity).insert(Selected);
-            }
+            } 
         }
     }
 
     pub fn drag_system(
         mw: Res<MouseWorldPos>,
-        mut q_drag: Query<(&mut Transform, &Draggable, &Drag), ()>
+        mut q_drag: Query<(&mut Transform, &Draggable, &Drag), ()>,
     ) {
         for (mut transform, draggable, drag) in q_drag.iter_mut() {
             if draggable.update {
@@ -296,32 +310,3 @@ pub mod interaction2d {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

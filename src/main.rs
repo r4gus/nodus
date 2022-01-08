@@ -1,24 +1,21 @@
-use bevy::prelude::*;
-use bevy_prototype_lyon::prelude::*;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
-use bevy_egui::{EguiPlugin};
-use bevy_asset_loader::{AssetLoader, AssetCollection};
+use bevy::prelude::*;
+use bevy_asset_loader::{AssetCollection, AssetLoader};
+use bevy_egui::EguiPlugin;
+use bevy_prototype_lyon::prelude::*;
 
 mod node;
 mod radial_menu;
 
 use node::*;
-use nodus::world2d::{
-    camera2d::Camera2DPlugin, 
-    interaction2d::Interaction2DPlugin
-};
+use nodus::world2d::{camera2d::Camera2DPlugin, interaction2d::Interaction2DPlugin};
 
 use radial_menu::RadialMenu;
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 enum GameState {
-  AssetLoading,
-  InGame,
+    AssetLoading,
+    InGame,
 }
 
 fn main() {
