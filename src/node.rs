@@ -1480,7 +1480,7 @@ fn draw_line_system(
                             )
                         )
                         .insert(DataPoint {
-                            stepsize: 1. / l / 6.,
+                            stepsize: 1. / (l / 250.),
                             steps: 0.,
                         }).id();
                     
@@ -1582,12 +1582,13 @@ fn draw_data_flow(
     q_line: Query<&ConnectionLine>, 
 ) {
     for (entity, parent, mut transform, mut data) in q_point.iter_mut() {
-        data.steps += time.delta_seconds();
+        if let Ok(line) = q_line.get(parent.0) {
+            let l = ((line.via[3].x - line.via[0].x).powi(2) + (line.via[3].y - line.via[0].y).powi(2)).sqrt();
+            data.steps += (1. / (l / 300.)) * time.delta_seconds();
 
-        if data.steps >= 1.0 {
-            commands.entity(entity).despawn_recursive();
-        } else {
-            if let Ok(line) = q_line.get(parent.0) {
+            if data.steps >= 1.0 {
+                commands.entity(entity).despawn_recursive();
+            } else {
                 let p = qubic_bezier_point(
                     data.steps, 
                     line.via[0].clone(), 
@@ -1596,13 +1597,12 @@ fn draw_data_flow(
                     line.via[3].clone()
                 );
 
-               transform.translation.x = p.x; 
-               transform.translation.y = p.y; 
+                transform.translation.x = p.x; 
+                transform.translation.y = p.y; 
             }
         }
     }
 }
-
 
 
 // ############################# User Interface #########################################
