@@ -10,6 +10,7 @@ use nodus::world2d::camera2d::MouseWorldPos;
 use nodus::world2d::interaction2d::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI32, Ordering};
+use lyon_tessellation::path::path::Builder;
 
 pub struct NodeInGamePlugin;
 
@@ -42,7 +43,7 @@ macro_rules! trans {
 }
 
 impl Plugin for NodeInGamePlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_event::<ConnectEvent>()
             .add_event::<ChangeInput>()
             .add_event::<DisconnectEvent>()
@@ -105,6 +106,7 @@ impl Plugin for NodeInGamePlugin {
 }
 
 /// The name of an entity.
+#[derive(Component)]
 pub struct Name(String);
 
 /// The input and output states of a logic gate.
@@ -132,6 +134,7 @@ pub struct NodeRange {
 }
 
 /// Flag for logic gates.
+#[derive(Component)]
 pub struct Gate {
     pub inputs: u32,
     pub outputs: u32,
@@ -153,16 +156,56 @@ struct GateSize {
     offset: f32,
 }
 
+#[derive(Component)]
 struct LightBulb {
     state: State,
 }
 
+#[derive(Component)]
 struct ToggleSwitch;
+
+struct ToggleSwitchShape;
+
+impl Geometry for ToggleSwitchShape {
+    fn add_geometry(&self, b: &mut Builder) {
+        let radius = GATE_SIZE / 4.;
+        let mut path = PathBuilder::new();
+
+        path.move_to(Vec2::new(-radius, -radius));
+        path.arc(
+            Vec2::new(-radius, 0.),
+            Vec2::new(radius, radius),
+            -std::f32::consts::PI,
+            0.,
+        );
+        path.line_to(Vec2::new(radius, radius));
+        path.arc(
+            Vec2::new(radius, 0.),
+            Vec2::new(radius, radius),
+            -std::f32::consts::PI,
+            0.,
+        );
+        path.close();
+        b.concatenate(&[path.build().0.as_slice()]);
+    }
+}
+
+#[derive(Component)]
 struct Switch;
 
 pub enum SymbolStandard {
     ANSI(PathBuilder),
     BS(Handle<Font>, String, bool), // British System 3939
+}
+
+pub struct AnsiGateShape {
+    pub path: Path,
+}
+
+impl Geometry for AnsiGateShape {
+    fn add_geometry(&self, b: &mut Builder) {
+        b.concatenate(&[self.path.0.as_slice()]);
+    }
 }
 
 static Z_INDEX: AtomicI32 = AtomicI32::new(1);
@@ -288,13 +331,10 @@ impl Gate {
 
     fn new_gate_body(position: Vec3, path: PathBuilder) -> ShapeBundle {
         GeometryBuilder::build_as(
-            &path.build(),
-            ShapeColors::outlined(Color::WHITE, Color::BLACK),
-            DrawMode::Outlined {
-                fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default()
-                    .with_line_width(6.0)
-                    .with_line_join(LineJoin::MiterClip),
+            &AnsiGateShape { path: path.build() },
+             DrawMode::Outlined {
+                fill_mode: FillMode::color(Color::WHITE),
+                outline_mode: StrokeMode::new(Color::BLACK, 6.0),
             },
             Transform::from_xyz(position.x, position.y, position.z),
         )
@@ -459,17 +499,15 @@ impl Gate {
 
     fn new_body(x: f32, y: f32, z: f32, width: f32, height: f32) -> ShapeBundle {
         let shape = shapes::Rectangle {
-            width,
-            height,
+            extents: Vec2::new(width, height),
             ..shapes::Rectangle::default()
         };
 
         GeometryBuilder::build_as(
             &shape,
-            ShapeColors::outlined(Color::WHITE, Color::BLACK),
-            DrawMode::Outlined {
-                fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default().with_line_width(6.0),
+             DrawMode::Outlined {
+                fill_mode: FillMode::color(Color::WHITE),
+                outline_mode: StrokeMode::new(Color::BLACK, 6.0),
             },
             Transform::from_xyz(x, y, z),
         )
@@ -483,10 +521,9 @@ impl Gate {
 
         GeometryBuilder::build_as(
             &shape,
-            ShapeColors::outlined(Color::WHITE, Color::BLACK),
-            DrawMode::Outlined {
-                fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default().with_line_width(6.0),
+             DrawMode::Outlined {
+                fill_mode: FillMode::color(Color::WHITE),
+                outline_mode: StrokeMode::new(Color::BLACK, 6.0),
             },
             Transform::from_xyz(position.x, position.y, position.z),
         )
@@ -568,10 +605,9 @@ impl Gate {
                 svg_doc_size_in_px: Vec2::new(580.922, 580.922),
                 svg_path_string: LIGHT_BULB_PATH.to_string(),
             },
-            ShapeColors::outlined(color, Color::BLACK),
-            DrawMode::Outlined {
-                fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default().with_line_width(8.0),
+             DrawMode::Outlined {
+                fill_mode: FillMode::color(color),
+                outline_mode: StrokeMode::new(Color::BLACK, 8.0),
             },
             Transform::from_scale(Vec3::new(0.22, 0.22, 0.22)),
         )
@@ -615,11 +651,10 @@ impl Gate {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
         let switch = GeometryBuilder::build_as(
-            &Gate::toggle_switch_path_a().build(),
-            ShapeColors::outlined(Color::WHITE, Color::BLACK),
-            DrawMode::Outlined {
-                fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default().with_line_width(8.0),
+            &ToggleSwitchShape,
+             DrawMode::Outlined {
+                fill_mode: FillMode::color(Color::WHITE),
+                outline_mode: StrokeMode::new(Color::BLACK, 8.0),
             },
             Transform::from_xyz(x, y, z),
         );
@@ -654,10 +689,9 @@ impl Gate {
                 radius: GATE_SIZE / 4.,
                 center: Vec2::new(0., 0.),
             },
-            ShapeColors::outlined(Color::WHITE, Color::BLACK),
             DrawMode::Outlined {
-                fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default().with_line_width(8.0),
+                fill_mode: FillMode::color(Color::WHITE),
+                outline_mode: StrokeMode::new(Color::BLACK, 8.0),
             },
             Transform::from_xyz(-GATE_SIZE / 4., 0., 1.),
         );
@@ -874,21 +908,25 @@ impl Gate {
 }
 
 /// Input values of a logical node, e.g. a gate.
+#[derive(Component)]
 pub struct Inputs(Vec<State>);
 
 /// Output values of a logical node, e.g. a gate.
+#[derive(Component)]
 pub struct Outputs(Vec<State>);
 
 /// A set of transition functions `f: Inputs -> State`.
 ///
 /// For a logic node, e.g. a gate, there should be a transition function
 /// for each output.
+#[derive(Component)]
 pub struct Transitions(Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>);
 
 /// A vector that maps from outputs to connected nodes.
 ///
 /// For a logic node, e.g. a gate, there should be a vector entry for
 /// each output.
+#[derive(Component)]
 pub struct Targets(Vec<TargetMap>);
 
 /// System for calculating the state of each output using the corresponding
@@ -1035,6 +1073,7 @@ pub enum ConnectorType {
 }
 
 /// A connector acts as the interface between two nodes, e.g. a logic gate.
+#[derive(Component)]
 pub struct Connector {
     /// The type of the connector.
     ctype: ConnectorType,
@@ -1043,8 +1082,11 @@ pub struct Connector {
 }
 
 /// Connection lines connected to this connector.
+#[derive(Component)]
 pub struct Connections(Vec<Entity>);
 
+/// Marker component for free connectors.
+#[derive(Component)]
 pub struct Free;
 
 impl Connector {
@@ -1063,10 +1105,9 @@ impl Connector {
 
         let connector = GeometryBuilder::build_as(
             &circle,
-            ShapeColors::outlined(Color::WHITE, Color::BLACK),
             DrawMode::Outlined {
-                fill_options: FillOptions::default(),
-                outline_options: StrokeOptions::default().with_line_width(5.0),
+                fill_mode: FillMode::color(Color::WHITE),
+                outline_mode: StrokeMode::new(Color::BLACK, 5.0),
             },
             Transform::from_xyz(position.x, position.y, 0.),
         );
@@ -1097,8 +1138,7 @@ impl Connector {
         let line = shapes::Line(Vec2::new(-position.x, 0.), Vec2::new(0., 0.));
         let line_conn = GeometryBuilder::build_as(
             &line,
-            ShapeColors::new(Color::BLACK),
-            DrawMode::Stroke(StrokeOptions::default().with_line_width(6.0)),
+            DrawMode::Stroke(StrokeMode::new(Color::BLACK, 6.0)),
             Transform::from_xyz(0., 0., -1.),
         );
 
@@ -1127,6 +1167,7 @@ fn highlight_connector_system(
 /// A line shown when the user clicks and drags from a connector.
 /// It's expected that there is atmost one ConnectionLineIndicator
 /// present.
+#[derive(Component)]
 pub struct ConnectionLineIndicator;
 
 fn drag_connector_system(
@@ -1141,7 +1182,7 @@ fn drag_connector_system(
     q_drop: Query<(Entity, &Connector), (With<Hover>, With<Free>)>,
     mut ev_connect: EventWriter<ConnectEvent>,
 ) {
-    if let Ok((entity, transform, connector)) = q_dragged.single() {
+    if let Ok((entity, transform, connector)) = q_dragged.get_single() {
         // If the LMB is released we check if we can connect two connectors.
         if mb.just_released(MouseButton::Left) {
             commands.entity(entity).remove::<Drag>();
@@ -1149,12 +1190,12 @@ fn drag_connector_system(
             // We dont need the visual connection line any more.
             // There will be another system responsible for
             // drawing the connections between nodes.
-            if let Ok(conn_line) = q_conn_line.single() {
+            if let Ok(conn_line) = q_conn_line.get_single() {
                 commands.entity(conn_line).despawn_recursive();
             }
 
             // Try to connect input and output.
-            if let Ok((drop_target, drop_connector)) = q_drop.single() {
+            if let Ok((drop_target, drop_connector)) = q_drop.get_single() {
                 eprintln!("drop");
                 // One can only connect an input to an output.
                 if connector.ctype != drop_connector.ctype {
@@ -1182,7 +1223,7 @@ fn drag_connector_system(
         } else {
             // While LMB is being pressed, draw the line from the node clicked on
             // to the mouse cursor.
-            let conn_entity = if let Ok(conn_line) = q_conn_line.single() {
+            let conn_entity = if let Ok(conn_line) = q_conn_line.get_single() {
                 commands.entity(conn_line).remove_bundle::<ShapeBundle>();
                 conn_line
             } else {
@@ -1196,10 +1237,9 @@ fn drag_connector_system(
 
             let line = GeometryBuilder::build_as(
                 &shape,
-                ShapeColors::outlined(Color::TEAL, Color::BLACK),
                 DrawMode::Outlined {
-                    fill_options: FillOptions::default(),
-                    outline_options: StrokeOptions::default().with_line_width(10.0),
+                    fill_mode: FillMode::color(Color::WHITE),
+                    outline_mode: StrokeMode::new(Color::BLACK, 10.0),
                 },
                 Transform::from_xyz(0., 0., 1.),
             );
@@ -1351,6 +1391,7 @@ pub struct ConnInfo {
     index: usize,
 }
 
+#[derive(Component)]
 pub struct ConnectionLine {
     output: ConnInfo,
     via: Vec<Vec2>,
@@ -1402,6 +1443,24 @@ impl ConnectionLine {
     }
 }
 
+pub struct ConnectionLineShape<'a> {
+    pub via: &'a [Vec2], 
+}
+
+impl<'a> Geometry for ConnectionLineShape<'a> {
+    fn add_geometry(&self, b: &mut Builder) {
+        let mut path = PathBuilder::new();
+        path.move_to(self.via[0]);
+        path.cubic_bezier_to(
+            self.via[1],
+            self.via[2],
+            self.via[3],
+        );
+
+        b.concatenate(&[path.build().0.as_slice()]);
+    }
+}
+
 fn draw_line_system(
     mut commands: Commands,
     mut q_line: Query<(Entity, &mut ConnectionLine), ()>,
@@ -1449,13 +1508,8 @@ fn draw_line_system(
                 commands
                     .entity(entity)
                     .insert_bundle(GeometryBuilder::build_as(
-                        &path.build(),
-                        ShapeColors::new(color),
-                        DrawMode::Stroke(
-                            StrokeOptions::default()
-                                .with_line_width(8.0)
-                                .with_line_join(LineJoin::Bevel),
-                        ),
+                        &ConnectionLineShape { via: &via },
+                        DrawMode::Stroke(StrokeMode::new(color, 8.0)),
                         Transform::from_xyz(0., 0., 0.),
                     ));
 
@@ -1469,12 +1523,9 @@ fn draw_line_system(
                                     radius: 3.,
                                     center: Vec2::new(0., 0.),
                                 },
-                                ShapeColors::outlined(Color::WHITE, Color::WHITE),
                                 DrawMode::Outlined {
-                                    fill_options: FillOptions::default(),
-                                    outline_options: StrokeOptions::default()
-                                        .with_line_width(1.0)
-                                        .with_line_join(LineJoin::MiterClip),
+                                    fill_mode: FillMode::color(Color::WHITE),
+                                    outline_mode: StrokeMode::new(Color::WHITE, 1.0),
                                 },
                                 Transform::from_xyz(t_from.translation.x, t_from.translation.y, 1.),
                             )
@@ -1592,6 +1643,7 @@ struct LineResource {
     update: bool,
 }
 
+#[derive(Component)]
 struct DataPoint {
     stepsize: f32,
     steps: f32,
@@ -1630,65 +1682,50 @@ fn draw_data_flow(
 // ############################# User Interface #########################################
 #[derive(AssetCollection)]
 pub struct GateAssets {
-    #[asset(color_material)]
     #[asset(path = "gates/not.png")]
-    pub not: Handle<ColorMaterial>,
+    pub not: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/and.png")]
-    pub and: Handle<ColorMaterial>,
+    pub and: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/nand.png")]
-    pub nand: Handle<ColorMaterial>,
+    pub nand: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/or.png")]
-    pub or: Handle<ColorMaterial>,
+    pub or: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/nor.png")]
-    pub nor: Handle<ColorMaterial>,
+    pub nor: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/xor.png")]
-    pub xor: Handle<ColorMaterial>,
+    pub xor: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/back.png")]
-    pub back: Handle<ColorMaterial>,
+    pub back: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/close.png")]
-    pub close: Handle<ColorMaterial>,
+    pub close: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/circuit.png")]
-    pub circuit: Handle<ColorMaterial>,
+    pub circuit: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/in.png")]
-    pub inputs: Handle<ColorMaterial>,
+    pub inputs: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/out.png")]
-    pub outputs: Handle<ColorMaterial>,
+    pub outputs: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/high.png")]
-    pub high: Handle<ColorMaterial>,
+    pub high: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/low.png")]
-    pub low: Handle<ColorMaterial>,
+    pub low: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/toggle.png")]
-    pub toggle: Handle<ColorMaterial>,
+    pub toggle: Handle<Image>,
 
-    #[asset(color_material)]
     #[asset(path = "gates/bulb.png")]
-    pub bulb: Handle<ColorMaterial>,
+    pub bulb: Handle<Image>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -1995,7 +2032,7 @@ fn ui_node_info_system(
     mut ev_change: EventWriter<ChangeInput>,
     mut mb: ResMut<Input<MouseButton>>,
 ) {
-    if let Ok((entity, name, gate)) = q_gate.single() {
+    if let Ok((entity, name, gate)) = q_gate.get_single() {
         if let Some(response) = egui::Window::new(&name.0)
             .title_bar(false)
             .anchor(egui::Align2::RIGHT_BOTTOM, egui::Vec2::new(-5., -5.))

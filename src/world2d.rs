@@ -6,7 +6,7 @@ pub mod camera2d {
     pub struct Camera2DPlugin;
 
     impl Plugin for Camera2DPlugin {
-        fn build(&self, app: &mut AppBuilder) {
+        fn build(&self, app: &mut App) {
             app.insert_resource(MouseWorldPos(Vec2::new(0., 0.)))
                 .add_startup_system(setup.system())
                 .add_system(cursor_system.system())
@@ -15,6 +15,7 @@ pub mod camera2d {
     }
 
     /// Used to help identify the main camera.
+    #[derive(Component)]
     pub struct MainCamera;
 
     /// Position resource of the mouse cursor within the 2d world.
@@ -65,7 +66,7 @@ pub mod camera2d {
             let p = pos - size / 2.;
 
             // assuming there is exacly one main camera entity, so this is ok.
-            let camera_transform = q_camera.single().unwrap();
+            let camera_transform = q_camera.single();
 
             // apply the camera transform.
             let pos_wld = camera_transform.compute_matrix() * p.extend(0.).extend(1.);
@@ -100,7 +101,7 @@ pub mod camera2d {
         }
 
         // assuming there is exacly one main camera entity, so this is ok.
-        if let Ok(mut transform) = q_camera.single_mut() {
+        if let Ok(mut transform) = q_camera.get_single_mut() {
             if pan.length_squared() > 0.0 {
                 let scale = transform.scale.x;
                 transform.translation.x -= pan.x * scale;
@@ -126,7 +127,7 @@ pub mod interaction2d {
     pub struct Interaction2DPlugin;
 
     impl Plugin for Interaction2DPlugin {
-        fn build(&self, app: &mut AppBuilder) {
+        fn build(&self, app: &mut App) {
             app.add_system_set(
                 SystemSet::new()
                     .label("interaction2d")
@@ -138,13 +139,15 @@ pub mod interaction2d {
     }
 
     /// Marker component for selected entities.
-    #[derive(Debug)]
+    #[derive(Debug, Component)]
     pub struct Selected;
 
     /// Component that marks an entity as selectable.
+    #[derive(Component)]
     pub struct Selectable;
 
     /// Component that marks an entity interactable.
+    #[derive(Component)]
     pub struct Interactable {
         /// The bounding box defines the area where the mouse
         /// can interact with the entity.
@@ -192,9 +195,11 @@ pub mod interaction2d {
 
     /// Marker component to indicate that the mouse
     /// currently hovers over the given entity.
+    #[derive(Component)]
     pub struct Hover;
 
     /// Component that marks an entity as draggable.
+    #[derive(Component)]
     pub struct Draggable {
         /// The drag system should automatically update
         /// the entities transformation while being dragged
@@ -204,6 +209,7 @@ pub mod interaction2d {
 
     /// Marker component to indicate that the
     /// given entity is currently dragged.
+    #[derive(Component)]
     pub struct Drag {
         /// The click offset is the distance between the
         /// translation of the clicked entity and the position

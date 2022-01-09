@@ -19,9 +19,10 @@ enum GameState {
 }
 
 fn main() {
-    let mut app = App::build();
+    let mut app = App::new();
 
-    AssetLoader::new(GameState::AssetLoading, GameState::InGame)
+    AssetLoader::new(GameState::AssetLoading)
+        .continue_to_state(GameState::InGame)
         .with_collection::<FontAssets>()
         .with_collection::<GateAssets>()
         .build(&mut app);

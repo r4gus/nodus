@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::entity::ShapeBundle;
 use bevy_prototype_lyon::prelude::*;
+use bevy_prototype_lyon::geometry::Geometry;
+use lyon_tessellation::path::path::Builder;
 
 pub struct RadialMenu;
 
 impl Plugin for RadialMenu {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.insert_resource(MenuSettings::default())
             .add_event::<OpenMenuEvent>()
             .add_event::<UpdateCursorPositionEvent>()
@@ -40,6 +42,7 @@ impl MenuSettings {
     }
 }
 
+#[derive(Component)]
 pub struct Menu {
     position: Vec2,
     mouse_button: MouseButton,
@@ -47,18 +50,39 @@ pub struct Menu {
     selected: Entity,
 }
 
+#[derive(Component)]
 struct MenuItem {
     id: usize,
     text: String,
     range: Vec2,
 }
 
+#[derive(Component)]
 struct ItemInfo;
 
 pub struct OpenMenuEvent {
     pub position: Vec2,
     pub mouse_button: MouseButton,
-    pub items: Vec<(Handle<ColorMaterial>, String, Vec2)>,
+    pub items: Vec<(Handle<Image>, String, Vec2)>,
+}
+
+struct MenuItemShape {
+    radians_distance: f32,
+    inner_radius: f32,
+    outer_radius: f32,
+    item_nr: usize,
+}
+
+impl Geometry for MenuItemShape {
+    fn add_geometry(&self, b: &mut Builder) {
+        let mut path = create_menu_item_path(
+            self.radians_distance, 
+            self.inner_radius, 
+            self.outer_radius, 
+            self.item_nr
+        );
+        b.concatenate(&[path.0.as_slice()]);
+    }
 }
 
 fn create_menu_item_path(
@@ -66,7 +90,7 @@ fn create_menu_item_path(
     inner_radius: f32,
     outer_radius: f32,
     item_nr: usize,
-) -> PathBuilder {
+) -> Path {
     let inner_point = Vec2::new(
         (radians_distance * (item_nr + 1) as f32).cos() * inner_radius,
         (radians_distance * (item_nr + 1) as f32).sin() * inner_radius,
@@ -92,7 +116,7 @@ fn create_menu_item_path(
         0.,
     );
     arc_path.close();
-    arc_path
+    arc_path.build()
 }
 
 fn create_menu_item_visual(
@@ -103,9 +127,13 @@ fn create_menu_item_visual(
     color: Color,
 ) -> ShapeBundle {
     GeometryBuilder::build_as(
-        &create_menu_item_path(radians_distance, inner_radius, outer_radius, item_nr).build(),
-        ShapeColors::outlined(color, color),
-        DrawMode::Fill(Default::default()),
+        &MenuItemShape {
+            radians_distance, 
+            inner_radius, 
+            outer_radius, 
+            item_nr
+        },
+        DrawMode::Fill(FillMode::color(color)),
         Transform::from_xyz(0., 0., 0.),
     )
 }
@@ -117,7 +145,7 @@ fn open_menu_system(
     q_menu: Query<&Menu>,
     asset_server: Res<AssetServer>,
 ) {
-    if let Ok(_) = q_menu.single() {
+    if let Ok(_) = q_menu.get_single() {
         return;
     }
 
@@ -154,13 +182,16 @@ fn open_menu_system(
                     })
                     .with_children(|parent| {
                         parent.spawn_bundle(SpriteBundle {
-                            material: ev.items[i].0.clone(),
-                            sprite: Sprite::new(ev.items[i].2),
+                            texture: ev.items[i].0.clone(),
                             transform: Transform::from_xyz(
                                 center.cos() * factor,
                                 center.sin() * factor,
                                 1.,
                             ),
+                            sprite: Sprite {
+                                custom_size: Some(ev.items[i].2),
+                                ..Default::default()
+                            },
                             ..Default::default()
                         });
                     })
@@ -189,8 +220,7 @@ fn open_menu_system(
                         radius: settings.inner_radius * 0.9,
                         center: Vec2::new(0., 0.),
                     },
-                    ShapeColors::new(settings.second_color),
-                    DrawMode::Fill(Default::default()),
+                    DrawMode::Fill(FillMode::color(settings.second_color)),
                     Transform::from_xyz(0., 0., 0.),
                 );
 
@@ -236,7 +266,7 @@ fn execute_and_close_system(
 ) {
     // There should only be one radial menu open at
     // any given moment.
-    if let Ok((entity, menu)) = q_menu.single() {
+    if let Ok((entity, menu)) = q_menu.get_single() {
         if mb.just_pressed(menu.mouse_button) {
             if let Ok(item) = q_item.get(menu.selected) {
                 eprintln!("sending");
@@ -262,7 +292,7 @@ fn update_system(
     q_item_info: Query<(Entity, &Children), With<ItemInfo>>,
     asset_server: Res<AssetServer>,
 ) {
-    if let Ok((children, mut menu)) = q_menu.single_mut() {
+    if let Ok((children, mut menu)) = q_menu.get_single_mut() {
         for ev in ev_open.iter() {
             let distance = ev.0 - menu.position;
             let mut rad = distance.y.atan2(distance.x);
@@ -308,7 +338,7 @@ fn update_system(
                             }
 
                             // Update info text.
-                            if let Ok((entity, children)) = q_item_info.single() {
+                            if let Ok((entity, children)) = q_item_info.get_single() {
                                 for &child in children.iter() {
                                     commands.entity(child).despawn_recursive();
                                 }

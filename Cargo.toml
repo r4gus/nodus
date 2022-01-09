@@ -6,11 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { src = "0.5", features = ["dynamic", "wayland"] }
-bevy_prototype_lyon = "0.3"
-bevy_egui = "0.8"
-bevy_asset_loader = "0.6"
+bevy = { src = "0.6", features = ["dynamic", "wayland"] }
+bevy_prototype_lyon = "0.4"
+bevy_egui = "0.10"
+bevy_asset_loader = "0.8"
 lyon_geom = "0.17.6"
+lyon_tessellation = "0.17"
 
 [toolchain]
 channel = "nightly"
