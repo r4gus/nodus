@@ -10,8 +10,8 @@ A graphical __logic gate simulator__.
 
 - `lmb pressed`: select/ drag
 - `rmb pressed`: open context menu
-- `mouse wheele`: zoom
-- `mouse wheele pressed`: pan
+- `mouse wheel`: zoom
+- `mouse wheel pressed`: pan
 
 ## Features
 
