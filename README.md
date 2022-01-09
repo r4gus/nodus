@@ -2,16 +2,24 @@
 
 A graphical __logic gate simulator__.
 
-> __Disclaimer:__ This piece of software is in an very early stage of development
-> and far from complete.
+> __Disclaimer:__ This software is in active development. 
 
-![Simple Circuit](thumbnail.png)
+![Simple Circuit](thumbnail.gif)
 
 ## Features
 
 * Create nodes (gates, input controls, output controls) and connect them to
   build simple circuits.
 * Radial Context Menu
+
+## Planned Features
+
+[ ] Create new logic components from existing circuits
+[ ] Save and Load circuits
+[ ] Group select components
+[ ] More input controls (e.g. button, clock)
+[ ] More output controls (e.g. 7 segment display)
+[ ] Create truth tables from circuits
 
 ## Credits
 
