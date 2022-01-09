@@ -4,10 +4,10 @@ use bevy_asset_loader::{AssetCollection, AssetLoader};
 use bevy_egui::EguiPlugin;
 use bevy_prototype_lyon::prelude::*;
 
-mod node;
+mod component;
 mod radial_menu;
 
-use node::*;
+use component::*;
 use nodus::world2d::{camera2d::Camera2DPlugin, interaction2d::Interaction2DPlugin};
 
 use radial_menu::RadialMenu;
@@ -44,7 +44,7 @@ fn main() {
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(Camera2DPlugin)
         .add_plugin(Interaction2DPlugin)
-        .add_plugin(NodeInGamePlugin)
+        .add_plugin(LogicComponentSystem)
         .add_plugin(RadialMenu)
         .run();
 }
