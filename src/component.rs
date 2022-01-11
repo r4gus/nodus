@@ -12,9 +12,25 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use lyon_tessellation::path::path::Builder;
 use std::collections::HashMap;
 
+macro_rules! trans {
+    ( $( $fun:expr ),* ) => {
+        vec![ $( Box::new($fun) ),* ]
+    };
+    ( $( $fun:expr ),+ ,) => {
+        trans![ $( $fun ),* ]
+    };
+}
+
 pub mod core {
-    use std::collections::HashMap;
+    use std::{
+        collections::HashMap,
+        ops::{Deref, DerefMut},
+    };
     use bevy::prelude::*;
+
+    /// The name of an entity.
+    #[derive(Debug, Clone, PartialEq, Component)]
+    pub struct Name(pub String);
 
     /// The input and output states of a logic gate.
     ///
@@ -31,7 +47,7 @@ pub mod core {
     }
 
     /// Specify the minimum and maximum number a connectors for a logic component.
-    #[derive(Debug, Copy, Clone)]
+    #[derive(Debug, Copy, Clone, PartialEq)]
     pub struct NodeRange {
         pub min: u32,
         pub max: u32,
@@ -45,21 +61,119 @@ pub mod core {
     /// * `outputs` - Current number of output connectors.
     /// * `in_range` - Allowed minimum and maximum of inputs connectors.
     /// * `out_range` - Allowed minimum and maximum of inputs connectors.
-    #[derive(Debug, Clone, Component)]
+    #[derive(Debug, Clone, PartialEq, Component)]
     pub struct Gate {
         pub inputs: u32,
         pub outputs: u32,
         pub in_range: NodeRange,
         pub out_range: NodeRange,
     }
+
+    impl Gate {
+        pub fn new(
+            commands: &mut Commands,
+            name: &str,
+            in_range: NodeRange,
+            out_range: NodeRange,
+            functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
+        ) -> Entity {
+            let gate = commands
+                .spawn()
+                .insert(Self {
+                    inputs: in_range.min,
+                    outputs: out_range.min,
+                    in_range,
+                    out_range,
+                })
+                .insert(Name(name.to_string()))
+                .insert(Inputs(vec![State::None; in_range.min as usize]))
+                .insert(Outputs(vec![State::None; out_range.min as usize]))
+                .insert(Transitions(functions))
+                .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
+                .id();
+
+                let mut connectors = Vec::new();
+                for i in 0..in_range.min as usize {
+                    connectors.push(Connector::new(commands, ConnectorType::In, i));
+                }
+                for i in 0..in_range.min as usize {
+                    connectors.push(Connector::new(commands, ConnectorType::Out, i));
+                }
+                commands.entity(gate).push_children(&connectors);
+
+                gate
+        }
+
+        pub fn from_world(
+            world: &mut World,
+            name: &str,
+            in_range: NodeRange,
+            out_range: NodeRange,
+            functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
+        ) -> Entity {
+            let gate = world 
+                .spawn()
+                .insert(Self {
+                    inputs: in_range.min,
+                    outputs: out_range.min,
+                    in_range,
+                    out_range,
+                })
+                .insert(Name(name.to_string()))
+                .insert(Inputs(vec![State::None; in_range.min as usize]))
+                .insert(Outputs(vec![State::None; out_range.min as usize]))
+                .insert(Transitions(functions))
+                .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
+                .id();
+
+                let mut connectors = Vec::new();
+                for i in 0..in_range.min as usize {
+                    connectors.push(Connector::from_world(world, ConnectorType::In, i));
+                }
+                for i in 0..in_range.min as usize {
+                    connectors.push(Connector::from_world(world, ConnectorType::Out, i));
+                }
+                world.entity_mut(gate).push_children(&connectors);
+
+                gate
+        }
+    }
     
     /// Input values of a gate.
-    #[derive(Debug, Clone, Component)]
+    #[derive(Debug, Clone, PartialEq, Component)]
     pub struct Inputs(pub Vec<State>);
 
+    impl Deref for Inputs {
+        type Target = Vec<State>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl DerefMut for Inputs {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
+    }
+
     /// Output values of a gate.
-    #[derive(Debug, Clone, Component)]
+    #[derive(Debug, Clone, PartialEq, Component)]
     pub struct Outputs(pub Vec<State>);
+
+    impl Deref for Outputs {
+        type Target = Vec<State>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl DerefMut for Outputs {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
+    }
 
     /// A set of transition functions `f: Inputs -> State`.
     ///
@@ -81,11 +195,25 @@ pub mod core {
     ///
     /// For a logic node, e.g. a gate, there should be a vector entry for
     /// each output.
-    #[derive(Component)]
+    #[derive(Debug, Clone, PartialEq, Component)]
     pub struct Targets(pub Vec<TargetMap>);
 
+    impl Deref for Targets {
+        type Target = Vec<TargetMap>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl DerefMut for Targets {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
+    }
+
     /// Type of a connector.
-    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    #[derive(Debug, Copy, Clone, PartialEq, Hash)]
     pub enum ConnectorType {
         In,
         Out,
@@ -93,7 +221,7 @@ pub mod core {
 
     /// A connector acts as the interface of a logic component, 
     /// e.g. logic gate.
-    #[derive(Component)]
+    #[derive(Debug, Clone, PartialEq, Component)]
     pub struct Connector {
         /// The type of the connector.
         pub ctype: ConnectorType,
@@ -103,19 +231,68 @@ pub mod core {
         pub index: usize,
     }
 
+    impl Connector {
+        pub fn new(
+            commands: &mut Commands,
+            ctype: ConnectorType,
+            index: usize,
+        ) -> Entity {
+            commands
+                .spawn()
+                .insert(Connector { ctype, index })
+                .insert(Connections(Vec::new()))
+                .insert(Free)
+                .id()
+        }
+
+        pub fn from_world(
+            world: &mut World,
+            ctype: ConnectorType,
+            index: usize,
+        ) -> Entity {
+            world 
+                .spawn()
+                .insert(Connector { ctype, index })
+                .insert(Connections(Vec::new()))
+                .insert(Free)
+                .id()
+        }
+    }
+
     /// Connection lines connected to this connector.
-    #[derive(Component)]
+    #[derive(Debug, Clone, PartialEq, Component)]
     pub struct Connections(pub Vec<Entity>);
+
+    impl Deref for Connections {
+        type Target = Vec<Entity>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl DerefMut for Connections {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
+    }
+    
+    impl Connections {
+        /// Return an iterator over all connections.
+        fn iter(&self) -> impl Iterator<Item=&Entity> {
+            self.0.iter()
+        }
+    }
 
     /// Marker component for free connectors.
     ///
     /// Output connectors are always free, i.e.
     /// one can connect them to multiple inputs.
-    #[derive(Component)]
+    #[derive(Debug, Copy, Clone, PartialEq, Hash, Component)]
     pub struct Free;
 
     /// Associate a index with a entity.
-    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct ConnInfo {
         pub entity: Entity,
         pub index: usize,
@@ -126,7 +303,7 @@ pub mod core {
     /// The `via` vector can be used to store path coordinates
     /// between two gates which can be helpful when visualizing
     /// the connection.
-    #[derive(Debug, Clone, Component)]
+    #[derive(Debug, Clone, PartialEq, Component)]
     pub struct ConnectionLine {
         pub output: ConnInfo,
         pub via: Vec<Vec2>,
@@ -185,7 +362,7 @@ pub mod core {
     pub fn transition_system(mut query: Query<(&Inputs, &Transitions, &mut Outputs)>) {
         for (inputs, transitions, mut outputs) in query.iter_mut() {
             for i in 0..transitions.0.len() {
-                outputs.0[i] = transitions.0[i](&inputs.0);
+                outputs[i] = transitions.0[i](inputs);
             }
         }
     }
@@ -193,16 +370,16 @@ pub mod core {
     /// System for writing the calculated output states to the inputs of each connected node.
     pub fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Query<&mut Inputs>) {
         for (outputs, targets) in from_query.iter() {
-            for i in 0..outputs.0.len() {
-                for (&entity, idxvec) in &targets.0[i] {
+            for i in 0..outputs.len() {
+                for (&entity, idxvec) in &targets[i] {
                     if let Ok(mut inputs) = to_query.get_mut(entity) {
                         for &j in idxvec {
-                            if j < inputs.0.len() {
-                                inputs.0[j] = outputs.0[i];
+                            if j < inputs.len() {
+                                inputs[j] = outputs[i];
                             }
                         }
                     } else {
-                        error!("Could not query inputs of given entity ");
+                        error!("Could not query inputs of given entity: {:?}", entity);
                     }
                 }
             }
@@ -211,6 +388,7 @@ pub mod core {
     
     /// Event that asks the [`connect_event_system`] to connect
     /// the specified `output` to the given `input`.
+    #[derive(Debug, Clone, PartialEq)]
     pub struct ConnectEvent {
         pub output: Entity,
         pub output_index: usize,
@@ -267,7 +445,7 @@ pub mod core {
                 // The target map hast to point to the input connector,
                 // so it can receive updates.
                 if let Ok(mut targets) = q_parent.get_mut(parent.0) {
-                    targets.0[ev.output_index]
+                    targets[ev.output_index]
                         .entry(input_parent)
                         .or_insert(Vec::new())
                         .push(ev.input_index);
@@ -278,6 +456,7 @@ pub mod core {
     
     /// Request to the [`disconnect_event_system`] to
     /// disconnect the given connection.
+    #[derive(Debug, Clone, PartialEq)]
     pub struct DisconnectEvent {
         pub connection: Entity,
         pub in_parent: Option<Entity>,
@@ -305,7 +484,7 @@ pub mod core {
 
                     // Reset input state of the given connector.
                     if let Ok(mut inputs) = q_input.get_mut(parent_in.0) {
-                        inputs.0[line.input.index] = State::None;
+                        inputs[line.input.index] = State::None;
                     }
 
                     // Clear the input line from the vector and
@@ -332,25 +511,25 @@ pub mod core {
                     // target map of the gate the output connector belongs
                     // to and remove the associated entry.
                     if let Ok(mut targets) = q_parent.get_mut(parent_out.0) {
-                        let size = targets.0[line.output.index]
+                        let size = targets[line.output.index]
                             .get(&parent)
                             .expect("Should have associated entry")
                             .len();
 
                         if size > 1 {
-                            if let Some(index) = targets.0[line.output.index]
+                            if let Some(index) = targets[line.output.index]
                                 .get_mut(&parent)
                                 .expect("Should have associated entry")
                                 .iter()
                                 .position(|x| *x == line.input.index)
                             {
-                                targets.0[line.output.index]
+                                targets[line.output.index]
                                     .get_mut(&parent)
                                     .expect("Should have associated entry")
                                     .remove(index);
                             }
                         } else {
-                            targets.0[line.output.index].remove(&parent);
+                            targets[line.output.index].remove(&parent);
                         }
                     }
                 }
@@ -360,9 +539,92 @@ pub mod core {
             }
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{*, State};
+        use bevy::ecs::event::Events;
+
+        #[test]
+        fn test_connect() {
+            // Setup world
+            let mut world = World::default();            
+
+            // First stage for event handling
+            let mut first_stage = SystemStage::parallel();
+            first_stage.add_system(Events::<ConnectEvent>::update_system);
+            first_stage.add_system(Events::<DisconnectEvent>::update_system);
+
+            // Setup event resources
+            world.insert_resource(Events::<ConnectEvent>::default());
+            world.insert_resource(Events::<DisconnectEvent>::default());
+
+            // Setup stage with our systems
+            let mut update_stage = SystemStage::parallel();
+            update_stage.add_system(disconnect_event_system.system());
+            update_stage.add_system(transition_system.system().label("transition"));
+            update_stage.add_system(propagation_system.system().after("transition"));
+            update_stage.add_system(connect_event_system.system());
+           
+            let not_gate1 = Gate::from_world(
+                &mut world,
+                "NOT Gate",
+                NodeRange { min: 1, max: 1 },
+                NodeRange { min: 1, max: 1 },
+                trans![|inputs| {
+                    match inputs[0] {
+                        State::None => State::None,
+                        State::Low => State::High,
+                        State::High => State::Low,
+                    }
+                },],
+            );
+
+            let not_gate2 = Gate::from_world(
+                &mut world,
+                "NOT Gate",
+                NodeRange { min: 1, max: 1 },
+                NodeRange { min: 1, max: 1 },
+                trans![|inputs| {
+                    match inputs[0] {
+                        State::None => State::None,
+                        State::Low => State::High,
+                        State::High => State::Low,
+                    }
+                },],
+            );
+            
+            // Nothing should happen
+            first_stage.run(&mut world);
+            update_stage.run(&mut world);
+            assert_eq!(world.entity(not_gate1).get::<Inputs>().unwrap()[0], State::None);
+            assert_eq!(world.entity(not_gate1).get::<Outputs>().unwrap()[0], State::None);
+            assert_eq!(world.entity(not_gate2).get::<Inputs>().unwrap()[0], State::None);
+            assert_eq!(world.entity(not_gate2).get::<Outputs>().unwrap()[0], State::None);
+
+            // Set input of gate 1 to low  -> should update the output of gate 1
+            world.entity_mut(not_gate1).get_mut::<Inputs>().unwrap()[0] = State::Low;
+
+            first_stage.run(&mut world);
+            update_stage.run(&mut world);
+            assert_eq!(world.entity(not_gate1).get::<Inputs>().unwrap()[0], State::Low);
+            assert_eq!(world.entity(not_gate1).get::<Outputs>().unwrap()[0], State::High);
+            assert_eq!(world.entity(not_gate2).get::<Inputs>().unwrap()[0], State::None);
+            assert_eq!(world.entity(not_gate2).get::<Outputs>().unwrap()[0], State::None);
+
+            // Now lets send a connection event
+            /*
+            world.get_resource_mut::<Events::<ConnectEvent>>().send(
+                ConnectEvent {
+                    output: 
+                }
+            );
+            */
+        }
+    }
 }
 
-use crate::core::{*, State};
+use crate::core::{*, State, Name};
 
 /// Flag to 
 #[derive(Debug, Copy, Clone, Component)]
@@ -388,15 +650,6 @@ const LIGHT_BULB_PATH: &str = "M290.222,0C180.731,0,91.8,88.931,91.8,198.422c0,5
               c0,40.641-12.432,62.156-26.297,87.019C395.409,309.347,380.109,336.122,375.328,382.5z M213.244,469.519H367.2
               c3.347,0,6.215,2.869,6.215,6.216s-2.868,6.216-6.215,6.216H213.244c-3.347,0-6.216-2.869-6.216-6.216
               S209.896,469.519,213.244,469.519z";
-
-macro_rules! trans {
-    ( $( $fun:expr ),* ) => {
-        vec![ $( Box::new($fun) ),* ]
-    };
-    ( $( $fun:expr ),+ ,) => {
-        trans![ $( $fun ),* ]
-    };
-}
 
 impl Plugin for LogicComponentSystem {
     fn build(&self, app: &mut App) {
@@ -460,11 +713,6 @@ impl Plugin for LogicComponentSystem {
         info!("NodePlugin loaded");
     }
 }
-
-/// The name of an entity.
-#[derive(Component)]
-pub struct Name(String);
-
 
 const GATE_SIZE: f32 = 128.;
 const GATE_WIDTH: f32 = 64.;
@@ -1272,7 +1520,7 @@ fn delete_gate_system(
             // and disconnect all.
             for &child in children.iter() {
                 if let Ok(conns) = q_connectors.get(child) {
-                    for &connection in &conns.0 {
+                    for &connection in conns.iter() {
                         ev_disconnect.send(DisconnectEvent {
                             connection,
                             in_parent: Some(entity),
@@ -1293,8 +1541,8 @@ fn light_bulb_system(
     q_bulb: Query<Entity, Without<Connector>>,
 ) {
     for (children, inputs, mut light) in q_light.iter_mut() {
-        if inputs.0[0] != light.state {
-            let color = match inputs.0[0] {
+        if inputs[0] != light.state {
+            let color = match inputs[0] {
                 State::High => Color::BLUE,
                 _ => Color::WHITE,
             };
@@ -1308,7 +1556,7 @@ fn light_bulb_system(
                 }
             }
 
-            light.state = inputs.0[0];
+            light.state = inputs[0];
         }
     }
 }
@@ -1322,7 +1570,7 @@ fn toggle_switch_system(
     if mb.just_pressed(MouseButton::Left) {
         for (parent, mut transform) in q_switch.iter_mut() {
             if let Ok(mut inputs) = q_outputs.get_mut(parent.0) {
-                let next = match inputs.0[0] {
+                let next = match inputs[0] {
                     State::High => {
                         transform.translation.x -= GATE_SIZE / 2.;
                         State::Low
@@ -1332,7 +1580,7 @@ fn toggle_switch_system(
                         State::High
                     }
                 };
-                inputs.0[0] = next;
+                inputs[0] = next;
             }
         }
     }
@@ -1344,7 +1592,7 @@ fn toggle_switch_system(
 
 impl Connector {
     /// Create a new connector for a logic node.
-    pub fn new(
+    pub fn with_shape(
         commands: &mut Commands,
         position: Vec3,
         radius: f32,
@@ -1387,7 +1635,7 @@ impl Connector {
         ctype: ConnectorType,
         index: usize,
     ) -> Entity {
-        let id = Connector::new(commands, position, radius, ctype, index);
+        let id = Connector::with_shape(commands, position, radius, ctype, index);
         let line = shapes::Line(Vec2::new(-position.x, 0.), Vec2::new(0., 0.));
         let line_conn = GeometryBuilder::build_as(
             &line,
@@ -1539,7 +1787,7 @@ fn draw_line_system(
         if let Ok((t_parent, t_conn, t_from)) = q_transform.get(conn_line.output.entity) {
             // Set connection line color based on the value of the output.
             let color = if let Ok(outputs) = q_outputs.get(t_parent.0) {
-                match outputs.0[t_conn.index] {
+                match outputs[t_conn.index] {
                     State::None => Color::RED,
                     State::High => Color::BLUE,
                     State::Low => Color::BLACK,
@@ -2169,7 +2417,7 @@ fn change_input_system(
             let translation = transform.translation;
 
             // Update input vector
-            inputs.0.resize(gate.inputs as usize, State::None);
+            inputs.resize(gate.inputs as usize, State::None);
 
             // If the logic component is BS it has a box as body.
             // We are going to resize it in relation to the number
@@ -2225,7 +2473,7 @@ fn change_input_system(
                             } else {
                                 // Remove connector if neccessary. This includes logical
                                 // links between gates and connection line entities.
-                                for &c in &conns.0 {
+                                for &c in conns.iter() {
                                     ev_disconnect.send(DisconnectEvent {
                                         connection: c,
                                         in_parent: Some(gent),
