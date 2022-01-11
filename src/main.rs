@@ -4,6 +4,7 @@ use bevy_asset_loader::{AssetCollection, AssetLoader};
 use bevy_egui::EguiPlugin;
 use bevy_prototype_lyon::prelude::*;
 
+mod gate;
 mod component;
 mod radial_menu;
 
