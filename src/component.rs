@@ -16,6 +16,7 @@ use crate::gate::{
     core::{*, State, Name, trans},
     graphics::{
         light_bulb::*,
+        toggle_switch::*,
         Z_INDEX,
         GATE_SIZE, GATE_WIDTH, GATE_HEIGHT,
     },
@@ -101,37 +102,6 @@ struct GateSize {
     offset: f32,
 }
 
-#[derive(Component)]
-struct ToggleSwitch;
-
-struct ToggleSwitchShape;
-
-impl Geometry for ToggleSwitchShape {
-    fn add_geometry(&self, b: &mut Builder) {
-        let radius = GATE_SIZE / 4.;
-        let mut path = PathBuilder::new();
-
-        path.move_to(Vec2::new(-radius, -radius));
-        path.arc(
-            Vec2::new(-radius, 0.),
-            Vec2::new(radius, radius),
-            -std::f32::consts::PI,
-            0.,
-        );
-        path.line_to(Vec2::new(radius, radius));
-        path.arc(
-            Vec2::new(radius, 0.),
-            Vec2::new(radius, radius),
-            -std::f32::consts::PI,
-            0.,
-        );
-        path.close();
-        b.concatenate(&[path.build().0.as_slice()]);
-    }
-}
-
-#[derive(Component)]
-struct Switch;
 
 pub enum SymbolStandard {
     ANSI(PathBuilder),
@@ -540,70 +510,6 @@ impl Gate {
         commands.entity(parent).push_children(&entvec);
     }
 
-    pub fn toggle_switch(commands: &mut Commands, x: f32, y: f32) {
-        let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
-
-        let switch = GeometryBuilder::build_as(
-            &ToggleSwitchShape,
-             DrawMode::Outlined {
-                fill_mode: FillMode::color(Color::WHITE),
-                outline_mode: StrokeMode::new(Color::BLACK, 8.0),
-            },
-            Transform::from_xyz(x, y, z),
-        );
-
-        let parent = commands
-            .spawn_bundle(switch)
-            .insert(ToggleSwitch)
-            .insert(Name("Toggle Switch".to_string()))
-            .insert(Inputs(vec![State::Low]))
-            .insert(Outputs(vec![State::Low]))
-            .insert(Transitions(trans![|inputs| inputs[0]]))
-            .insert(Targets(vec![HashMap::new()]))
-            .insert(Interactable::new(
-                Vec2::new(0., 0.),
-                Vec2::new(GATE_SIZE, GATE_SIZE),
-                NODE_GROUP,
-            ))
-            .insert(Selectable)
-            .insert(Draggable { update: true })
-            .id();
-
-        let child = Connector::with_line(
-            commands,
-            Vec3::new(GATE_SIZE * 0.75, 0., 0.),
-            GATE_SIZE * 0.1,
-            ConnectorType::Out,
-            0,
-        );
-
-        let nod = GeometryBuilder::build_as(
-            &shapes::Circle {
-                radius: GATE_SIZE / 4.,
-                center: Vec2::new(0., 0.),
-            },
-            DrawMode::Outlined {
-                fill_mode: FillMode::color(Color::WHITE),
-                outline_mode: StrokeMode::new(Color::BLACK, 8.0),
-            },
-            Transform::from_xyz(-GATE_SIZE / 4., 0., 1.),
-        );
-
-        let nod_child = commands
-            .spawn_bundle(nod)
-            .insert(Switch)
-            .insert(Interactable::new(
-                Vec2::new(0., 0.),
-                Vec2::new(GATE_SIZE / 2., GATE_SIZE / 2.),
-                NODE_GROUP,
-            ))
-            .id();
-
-        commands
-            .entity(parent)
-            .push_children(&vec![child, nod_child]);
-    }
-
     pub fn not_gate(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
         Gate::new_gate(
             commands,
@@ -855,30 +761,6 @@ fn delete_gate_system(
     }
 }
 
-fn toggle_switch_system(
-    mut commands: Commands,
-    mut q_outputs: Query<&mut Inputs>,
-    mut q_switch: Query<(&Parent, &mut Transform), (With<Hover>, With<Switch>)>,
-    mb: Res<Input<MouseButton>>,
-) {
-    if mb.just_pressed(MouseButton::Left) {
-        for (parent, mut transform) in q_switch.iter_mut() {
-            if let Ok(mut inputs) = q_outputs.get_mut(parent.0) {
-                let next = match inputs[0] {
-                    State::High => {
-                        transform.translation.x -= GATE_SIZE / 2.;
-                        State::Low
-                    }
-                    _ => {
-                        transform.translation.x += GATE_SIZE / 2.;
-                        State::High
-                    }
-                };
-                inputs[0] = next;
-            }
-        }
-    }
-}
 
 // ############################# Connector ##############################################
 
@@ -1552,7 +1434,7 @@ fn handle_radial_menu_event_system(
                     ms.0 = MenuStates::Idle;
                 }
                 3 => {
-                    Gate::toggle_switch(&mut commands, ev.position.x, ev.position.y);
+                    ToggleSwitch::new(&mut commands, Vec2::new(ev.position.x, ev.position.y));
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {

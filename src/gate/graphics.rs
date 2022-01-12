@@ -1,4 +1,5 @@
 pub mod light_bulb;
+pub mod toggle_switch;
 
 use core::sync::atomic::AtomicI32;
 
