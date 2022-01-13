@@ -1,4 +1,7 @@
-use crate::gate::core::{*, State};
+use crate::gate::{
+    core::{*, State},
+    graphics::connector::*,
+};
 use super::*;
 use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable};
 use std::sync::atomic::Ordering;
@@ -54,7 +57,7 @@ impl LightBulb {
     }
 
     /// Create a new light bulb at the specified position.
-    pub fn new(
+    pub fn spawn(
         commands: &mut Commands,
         position: Vec2,
     ) {
@@ -95,7 +98,7 @@ impl LightBulb {
 pub fn light_bulb_system(
     mut commands: Commands,
     mut q_light: Query<(&Children, &Inputs, &mut LightBulb)>,
-    q_bulb: Query<Entity, Without<Connector>>,
+    mut draw: Query<&mut DrawMode, Without<Connector>>,
 ) {
     for (children, inputs, mut light) in q_light.iter_mut() {
 
@@ -109,13 +112,15 @@ pub fn light_bulb_system(
             };
             
             // One of the entities children is the actual svg image. Find
-            // and update it.
+            // and update its color;
             for &child in children.iter() {
-                if let Ok(entity) = q_bulb.get(child) {
-                    commands.entity(entity).remove_bundle::<ShapeBundle>();
-                    commands
-                        .entity(entity)
-                        .insert_bundle(LightBulb::shape_bundle(color));
+                if let Ok(mut mode) = draw.get_mut(child) {
+                    if let DrawMode::Outlined {
+                        ref mut fill_mode,
+                        ref mut outline_mode,
+                    } = *mode {
+                        fill_mode.color = color;
+                    }
                 }
             }
 

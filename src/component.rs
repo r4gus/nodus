@@ -14,17 +14,16 @@ use std::collections::HashMap;
 
 use crate::gate::{
     core::{*, State, Name, trans},
+    systems::*,
     graphics::{
         light_bulb::*,
         toggle_switch::*,
+        gate::*,
+        connector::*,
         Z_INDEX,
         GATE_SIZE, GATE_WIDTH, GATE_HEIGHT,
     },
 };
-
-/// Flag to 
-#[derive(Debug, Copy, Clone, Component)]
-pub struct BritishStandard;
 
 pub struct LogicComponentSystem;
 
@@ -94,29 +93,7 @@ impl Plugin for LogicComponentSystem {
     }
 }
 
-struct GateSize {
-    width: f32,
-    height: f32,
-    in_step: f32,
-    out_step: f32,
-    offset: f32,
-}
 
-
-pub enum SymbolStandard {
-    ANSI(PathBuilder),
-    BS(Handle<Font>, String, bool), // British System 3939
-}
-
-pub struct AnsiGateShape {
-    pub path: Path,
-}
-
-impl Geometry for AnsiGateShape {
-    fn add_geometry(&self, b: &mut Builder) {
-        b.concatenate(&[self.path.0.as_slice()]);
-    }
-}
 
 impl Gate {
     fn and_gate_path() -> PathBuilder {
@@ -236,695 +213,13 @@ impl Gate {
         path.close();
         path
     }
-
-    fn new_gate_body(position: Vec3, path: PathBuilder) -> ShapeBundle {
-        GeometryBuilder::build_as(
-            &AnsiGateShape { path: path.build() },
-             DrawMode::Outlined {
-                fill_mode: FillMode::color(Color::WHITE),
-                outline_mode: StrokeMode::new(Color::BLACK, 6.0),
-            },
-            Transform::from_xyz(position.x, position.y, position.z),
-        )
-    }
-
-    pub fn new_gate(
-        commands: &mut Commands,
-        name: String,
-        x: f32,
-        y: f32,
-        in_range: NodeRange,
-        out_range: NodeRange,
-        functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
-        standard: SymbolStandard,
-    ) {
-        let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
-        let mut sym = None;
-        let mut inv = false;
-
-        let (gate, dists, british_standard) = match standard {
-            SymbolStandard::ANSI(path) => (
-                Gate::new_gate_body(Vec3::new(x, y, zidx), path),
-                Gate::get_distances(
-                    in_range.min as f32,
-                    out_range.min as f32,
-                    GATE_SIZE as f32,
-                    GATE_SIZE as f32,
-                ),
-                false,
-            ),
-            SymbolStandard::BS(font, symbol, inverted) => {
-                sym = Some(
-                    commands
-                        .spawn_bundle(Text2dBundle {
-                            text: Text::with_section(
-                                &symbol,
-                                TextStyle {
-                                    font: font.clone(),
-                                    font_size: 30.0,
-                                    color: Color::BLACK,
-                                },
-                                TextAlignment {
-                                    horizontal: HorizontalAlign::Center,
-                                    ..Default::default()
-                                },
-                            ),
-                            transform: Transform::from_xyz(0., 0., zidx),
-                            ..Default::default()
-                        })
-                        .id(),
-                );
-
-                inv = inverted;
-
-                (
-                    Gate::new_body(x, y, zidx, GATE_WIDTH, GATE_HEIGHT),
-                    Gate::get_distances(
-                        in_range.min as f32,
-                        out_range.min as f32,
-                        GATE_WIDTH as f32,
-                        GATE_HEIGHT as f32,
-                    ),
-                    true,
-                )
-            }
-        };
-
-        let parent = commands
-            .spawn_bundle(gate)
-            .insert(Gate {
-                inputs: in_range.min,
-                outputs: out_range.min,
-                in_range,
-                out_range,
-            })
-            .insert(Name(name))
-            .insert(Inputs(vec![State::None; in_range.min as usize]))
-            .insert(Outputs(vec![State::None; out_range.min as usize]))
-            .insert(Transitions(functions))
-            .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
-            .insert(Interactable::new(
-                Vec2::new(0., 0.),
-                Vec2::new(dists.width, dists.height),
-                NODE_GROUP,
-            ))
-            .insert(Selectable)
-            .insert(Draggable { update: true })
-            .id();
-
-        if let Some(sym) = sym {
-            commands.entity(parent).push_children(&[sym]);
-        }
-
-        if british_standard {
-            commands.entity(parent).insert(BritishStandard);
-        }
-
-        if inv {
-            let radius = GATE_SIZE * 0.08;
-
-            let id = commands
-                .spawn_bundle(Gate::new_invert(
-                    Vec3::new(GATE_WIDTH / 2. + radius, 0., zidx),
-                    radius,
-                ))
-                .id();
-
-            commands.entity(parent).push_children(&[id]);
-        }
-
-        let mut entvec: Vec<Entity> = Vec::new();
-        for i in 1..=in_range.min {
-            entvec.push(Connector::with_line(
-                commands,
-                Vec3::new(
-                    -GATE_SIZE * 0.6,
-                    dists.offset + i as f32 * dists.in_step,
-                    zidx,
-                ),
-                GATE_SIZE * 0.1,
-                ConnectorType::In,
-                (i - 1) as usize,
-            ));
-        }
-
-        commands.entity(parent).push_children(&entvec);
-        entvec.clear();
-
-        for i in 1..=out_range.min {
-            entvec.push(Connector::with_line(
-                commands,
-                Vec3::new(
-                    GATE_SIZE * 0.6,
-                    dists.offset + i as f32 * dists.out_step,
-                    zidx,
-                ),
-                GATE_SIZE * 0.1,
-                ConnectorType::Out,
-                (i - 1) as usize,
-            ));
-        }
-        commands.entity(parent).push_children(&entvec);
-    }
-
-    fn get_distances(cin: f32, cout: f32, width: f32, _height: f32) -> GateSize {
-        let factor = if cin >= cout { cin } else { cout };
-        let height = _height
-            + if factor > 2. {
-                (factor - 1.) * _height / 2.
-            } else {
-                0.
-            };
-        let in_step = -(height / (cin + 1.));
-        let out_step = -(height / (cout + 1.));
-        let offset = height / 2.;
-
-        GateSize {
-            width,
-            height,
-            in_step,
-            out_step,
-            offset,
-        }
-    }
-
-    fn new_body(x: f32, y: f32, z: f32, width: f32, height: f32) -> ShapeBundle {
-        let shape = shapes::Rectangle {
-            extents: Vec2::new(width, height),
-            ..shapes::Rectangle::default()
-        };
-
-        GeometryBuilder::build_as(
-            &shape,
-             DrawMode::Outlined {
-                fill_mode: FillMode::color(Color::WHITE),
-                outline_mode: StrokeMode::new(Color::BLACK, 6.0),
-            },
-            Transform::from_xyz(x, y, z),
-        )
-    }
-
-    fn new_invert(position: Vec3, radius: f32) -> ShapeBundle {
-        let shape = shapes::Circle {
-            radius,
-            ..shapes::Circle::default()
-        };
-
-        GeometryBuilder::build_as(
-            &shape,
-             DrawMode::Outlined {
-                fill_mode: FillMode::color(Color::WHITE),
-                outline_mode: StrokeMode::new(Color::BLACK, 6.0),
-            },
-            Transform::from_xyz(position.x, position.y, position.z),
-        )
-    }
-
-    pub fn constant(
-        commands: &mut Commands,
-        name: String,
-        symbol: String,
-        x: f32,
-        y: f32,
-        state: State,
-        font: Handle<Font>,
-    ) {
-        let dists = Gate::get_distances(1., 1., GATE_WIDTH, GATE_WIDTH);
-
-        let zidx = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
-
-        let gate = Gate::new_body(x, y, zidx, dists.width, dists.height);
-
-        let sym_text = commands
-            .spawn_bundle(Text2dBundle {
-                text: Text::with_section(
-                    &symbol,
-                    TextStyle {
-                        font: font.clone(),
-                        font_size: 30.0,
-                        color: Color::BLACK,
-                    },
-                    TextAlignment {
-                        horizontal: HorizontalAlign::Center,
-                        ..Default::default()
-                    },
-                ),
-                transform: Transform::from_xyz(0., 0., zidx),
-                ..Default::default()
-            })
-            .id();
-
-        let parent = commands
-            .spawn_bundle(gate)
-            .insert(Gate {
-                inputs: 1,
-                outputs: 1,
-                in_range: NodeRange { min: 1, max: 1 },
-                out_range: NodeRange { min: 1, max: 1 },
-            })
-            .insert(Name(name))
-            .insert(Inputs(vec![state]))
-            .insert(Outputs(vec![State::None]))
-            .insert(Transitions(trans![|inputs| inputs[0]]))
-            .insert(Targets(vec![HashMap::new()]))
-            .insert(Interactable::new(
-                Vec2::new(0., 0.),
-                Vec2::new(dists.width, dists.height),
-                NODE_GROUP,
-            ))
-            .insert(Selectable)
-            .insert(Draggable { update: true })
-            .insert(BritishStandard)
-            .id();
-
-        commands.entity(parent).push_children(&[sym_text]);
-
-        let mut entvec: Vec<Entity> = Vec::new();
-        entvec.push(Connector::with_line(
-            commands,
-            Vec3::new(GATE_SIZE * 0.6, dists.offset + dists.out_step, zidx),
-            GATE_SIZE * 0.1,
-            ConnectorType::Out,
-            0,
-        ));
-        commands.entity(parent).push_children(&entvec);
-    }
-
-    pub fn not_gate(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::new_gate(
-            commands,
-            "NOT Gate".to_string(),
-            position.x,
-            position.y,
-            NodeRange { min: 1, max: 1 },
-            NodeRange { min: 1, max: 1 },
-            trans![|inputs| {
-                match inputs[0] {
-                    State::None => State::None,
-                    State::Low => State::High,
-                    State::High => State::Low,
-                }
-            },],
-            //SymbolStandard::ANSI(Gate::not_gate_path()),
-            SymbolStandard::BS(font, "1".to_string(), true),
-        );
-    }
-
-    pub fn and_gate(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::new_gate(
-            commands,
-            "AND Gate".to_string(),
-            position.x,
-            position.y,
-            NodeRange { min: 2, max: 16 },
-            NodeRange { min: 1, max: 1 },
-            trans![|inputs| {
-                let mut ret = State::High;
-                for i in inputs {
-                    match i {
-                        State::None => {
-                            ret = State::None;
-                        }
-                        State::Low => {
-                            ret = State::Low;
-                            break;
-                        }
-                        State::High => {}
-                    }
-                }
-                ret
-            },],
-            //SymbolStandard::ANSI(Gate::and_gate_path()),
-            SymbolStandard::BS(font, "&".to_string(), false),
-        );
-    }
-
-    pub fn nand_gate(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::new_gate(
-            commands,
-            "NAND Gate".to_string(),
-            position.x,
-            position.y,
-            NodeRange { min: 2, max: 16 },
-            NodeRange { min: 1, max: 1 },
-            trans![|inputs| {
-                let mut ret = State::Low;
-                for i in inputs {
-                    match i {
-                        State::None => {
-                            ret = State::None;
-                        }
-                        State::Low => {
-                            ret = State::High;
-                            break;
-                        }
-                        State::High => {}
-                    }
-                }
-                ret
-            },],
-            //SymbolStandard::ANSI(Gate::nand_gate_path()),
-            SymbolStandard::BS(font, "&".to_string(), true),
-        );
-    }
-
-    pub fn or_gate(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::new_gate(
-            commands,
-            "OR Gate".to_string(),
-            //"≥1".to_string(),
-            position.x,
-            position.y,
-            NodeRange { min: 2, max: 16 },
-            NodeRange { min: 1, max: 1 },
-            trans![|inputs| {
-                let mut ret = State::Low;
-                for i in inputs {
-                    match i {
-                        State::None => {
-                            ret = State::None;
-                        }
-                        State::Low => {}
-                        State::High => {
-                            ret = State::High;
-                            break;
-                        }
-                    }
-                }
-                ret
-            },],
-            //SymbolStandard::ANSI(Gate::or_gate_path()),
-            SymbolStandard::BS(font, "≥1".to_string(), false),
-        );
-    }
-
-    pub fn nor_gate(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::new_gate(
-            commands,
-            "NOR Gate".to_string(),
-            position.x,
-            position.y,
-            NodeRange { min: 2, max: 16 },
-            NodeRange { min: 1, max: 1 },
-            trans![|inputs| {
-                let mut ret = State::High;
-                for i in inputs {
-                    match i {
-                        State::None => {
-                            ret = State::None;
-                        }
-                        State::Low => {}
-                        State::High => {
-                            ret = State::Low;
-                            break;
-                        }
-                    }
-                }
-                ret
-            },],
-            //SymbolStandard::ANSI(Gate::nor_gate_path()),
-            SymbolStandard::BS(font, "≥1".to_string(), true),
-        );
-    }
-
-    pub fn xor_gate(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::new_gate(
-            commands,
-            "XOR Gate".to_string(),
-            position.x,
-            position.y,
-            NodeRange { min: 2, max: 16 },
-            NodeRange { min: 1, max: 1 },
-            trans![|inputs| {
-                let mut ret = State::None;
-                for i in inputs {
-                    match i {
-                        State::None => {}
-                        State::Low => {}
-                        State::High => match ret {
-                            State::None => {
-                                ret = State::High;
-                            }
-                            State::Low => {
-                                ret = State::High;
-                            }
-                            State::High => {
-                                ret = State::Low;
-                            }
-                        },
-                    }
-                }
-                ret
-            },],
-            //SymbolStandard::ANSI(Gate::xor_gate_path()),
-            SymbolStandard::BS(font, "=1".to_string(), false),
-        );
-    }
-
-    pub fn high_const(commands: &mut Commands, font: Handle<Font>, position: Vec2) {
-        Gate::constant(
-            commands,
-            "HIGH Const".to_string(),
-            "1".to_string(),
-            position.x,
-            position.y,
-            State::High,
-            font,
-        );
-    }
-
-    pub fn low_const(commands: &mut Commands, font: Handle<Font>, position: Vec2) {
-        Gate::constant(
-            commands,
-            "LOW Const".to_string(),
-            "0".to_string(),
-            position.x,
-            position.y,
-            State::Low,
-            font,
-        );
-    }
 }
 
 fn setup(mut _commands: Commands, _font: Res<FontAssets>, _gate: Res<GateAssets>) {}
 
-fn drag_gate_system(
-    mut commands: Commands,
-    mb: Res<Input<MouseButton>>,
-    q_dragged: Query<
-        Entity,
-        (
-            With<Drag>,
-            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>)>,
-        ),
-    >,
-) {
-    if mb.just_released(MouseButton::Left) {
-        for dragged_gate in q_dragged.iter() {
-            commands.entity(dragged_gate).remove::<Drag>();
-        }
-    }
-}
-
-fn delete_gate_system(
-    mut commands: Commands,
-    input_keyboard: Res<Input<KeyCode>>,
-    mut ev_disconnect: EventWriter<DisconnectEvent>,
-    q_gate: Query<
-        (Entity, &Children),
-        (
-            With<Selected>,
-            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>)>,
-        ),
-    >,
-    q_connectors: Query<&Connections>,
-) {
-    if input_keyboard.pressed(KeyCode::Delete) {
-        // Iterate over every selected gate and its children.
-        for (entity, children) in q_gate.iter() {
-            // Get the connections for each child
-            // and disconnect all.
-            for &child in children.iter() {
-                if let Ok(conns) = q_connectors.get(child) {
-                    for &connection in conns.iter() {
-                        ev_disconnect.send(DisconnectEvent {
-                            connection,
-                            in_parent: Some(entity),
-                        });
-                    }
-                }
-            }
-
-            // Delete the gate itself
-            commands.entity(entity).despawn_recursive();
-        }
-    }
-}
-
-
 // ############################# Connector ##############################################
 
 
-
-impl Connector {
-    /// Create a new connector for a logic node.
-    pub fn with_shape(
-        commands: &mut Commands,
-        position: Vec3,
-        radius: f32,
-        ctype: ConnectorType,
-        index: usize,
-    ) -> Entity {
-        let circle = shapes::Circle {
-            radius: radius,
-            center: Vec2::new(0., 0.),
-        };
-
-        let connector = GeometryBuilder::build_as(
-            &circle,
-            DrawMode::Outlined {
-                fill_mode: FillMode::color(Color::WHITE),
-                outline_mode: StrokeMode::new(Color::BLACK, 5.0),
-            },
-            Transform::from_xyz(position.x, position.y, 0.),
-        );
-
-        commands
-            .spawn_bundle(connector)
-            .insert(Connector { ctype, index })
-            .insert(Connections(Vec::new()))
-            .insert(Free)
-            .insert(Interactable::new(
-                Vec2::new(0., 0.),
-                Vec2::new(radius * 2., radius * 2.),
-                CONNECTOR_GROUP,
-            ))
-            .insert(Selectable)
-            .insert(Draggable { update: false })
-            .id()
-    }
-
-    pub fn with_line(
-        commands: &mut Commands,
-        position: Vec3,
-        radius: f32,
-        ctype: ConnectorType,
-        index: usize,
-    ) -> Entity {
-        let id = Connector::with_shape(commands, position, radius, ctype, index);
-        let line = shapes::Line(Vec2::new(-position.x, 0.), Vec2::new(0., 0.));
-        let line_conn = GeometryBuilder::build_as(
-            &line,
-            DrawMode::Stroke(StrokeMode::new(Color::BLACK, 6.0)),
-            Transform::from_xyz(0., 0., -1.),
-        );
-
-        let line_id = commands.spawn_bundle(line_conn).id();
-        commands.entity(id).push_children(&[line_id]);
-        id
-    }
-}
-
-/// Highlight a connector by increasing its radius when the mouse
-/// hovers over it.
-fn highlight_connector_system(
-    // We need all connectors the mouse hovers over.
-    mut q_hover: Query<&mut Transform, (With<Hover>, With<Connector>)>,
-    mut q2_hover: Query<&mut Transform, (Without<Hover>, With<Connector>)>,
-) {
-    for mut transform in q_hover.iter_mut() {
-        transform.scale = Vec3::new(1.2, 1.2, transform.scale.z);
-    }
-
-    for mut transform in q2_hover.iter_mut() {
-        transform.scale = Vec3::new(1.0, 1.0, transform.scale.z);
-    }
-}
-
-/// A line shown when the user clicks and drags from a connector.
-/// It's expected that there is atmost one ConnectionLineIndicator
-/// present.
-#[derive(Component)]
-pub struct ConnectionLineIndicator;
-
-fn drag_connector_system(
-    mut commands: Commands,
-    mb: Res<Input<MouseButton>>,
-    mw: Res<MouseWorldPos>,
-    // ID and transform of the connector we drag from.
-    q_dragged: Query<(Entity, &GlobalTransform, &Connector), (With<Drag>, With<Free>)>,
-    // The visual connection line indicator to update.
-    q_conn_line: Query<Entity, With<ConnectionLineIndicator>>,
-    // Posible free connector the mouse currently hovers over.
-    q_drop: Query<(Entity, &Connector), (With<Hover>, With<Free>)>,
-    mut ev_connect: EventWriter<ConnectEvent>,
-) {
-    if let Ok((entity, transform, connector)) = q_dragged.get_single() {
-        // If the LMB is released we check if we can connect two connectors.
-        if mb.just_released(MouseButton::Left) {
-            commands.entity(entity).remove::<Drag>();
-
-            // We dont need the visual connection line any more.
-            // There will be another system responsible for
-            // drawing the connections between nodes.
-            if let Ok(conn_line) = q_conn_line.get_single() {
-                commands.entity(conn_line).despawn_recursive();
-            }
-
-            // Try to connect input and output.
-            if let Ok((drop_target, drop_connector)) = q_drop.get_single() {
-                eprintln!("drop");
-                // One can only connect an input to an output.
-                if connector.ctype != drop_connector.ctype {
-                    // Send connection event.
-                    match connector.ctype {
-                        ConnectorType::In => {
-                            ev_connect.send(ConnectEvent {
-                                output: drop_target,
-                                output_index: drop_connector.index,
-                                input: entity,
-                                input_index: connector.index,
-                            });
-                        }
-                        ConnectorType::Out => {
-                            ev_connect.send(ConnectEvent {
-                                output: entity,
-                                output_index: connector.index,
-                                input: drop_target,
-                                input_index: drop_connector.index,
-                            });
-                        }
-                    }
-                }
-            }
-        } else {
-            // While LMB is being pressed, draw the line from the node clicked on
-            // to the mouse cursor.
-            let conn_entity = if let Ok(conn_line) = q_conn_line.get_single() {
-                commands.entity(conn_line).remove_bundle::<ShapeBundle>();
-                conn_line
-            } else {
-                commands.spawn().insert(ConnectionLineIndicator).id()
-            };
-
-            let shape = shapes::Line(
-                Vec2::new(transform.translation.x, transform.translation.y),
-                Vec2::new(mw.x, mw.y),
-            );
-
-            let line = GeometryBuilder::build_as(
-                &shape,
-                DrawMode::Outlined {
-                    fill_mode: FillMode::color(Color::WHITE),
-                    outline_mode: StrokeMode::new(Color::BLACK, 10.0),
-                },
-                Transform::from_xyz(0., 0., 1.),
-            );
-
-            commands.entity(conn_entity).insert_bundle(line);
-        }
-    }
-}
 
 
 
@@ -1370,27 +665,27 @@ fn handle_radial_menu_event_system(
             },
             MenuStates::LogicGates => match ev.id {
                 1 => {
-                    Gate::and_gate(&mut commands, ev.position, font.main.clone());
+                    Gate::and_gate_bs(&mut commands, ev.position, font.main.clone());
                     ms.0 = MenuStates::Idle;
                 }
                 2 => {
-                    Gate::nand_gate(&mut commands, ev.position, font.main.clone());
+                    Gate::nand_gate_bs(&mut commands, ev.position, font.main.clone());
                     ms.0 = MenuStates::Idle;
                 }
                 3 => {
-                    Gate::or_gate(&mut commands, ev.position, font.main.clone());
+                    Gate::or_gate_bs(&mut commands, ev.position, font.main.clone());
                     ms.0 = MenuStates::Idle;
                 }
                 4 => {
-                    Gate::nor_gate(&mut commands, ev.position, font.main.clone());
+                    Gate::nor_gate_bs(&mut commands, ev.position, font.main.clone());
                     ms.0 = MenuStates::Idle;
                 }
                 5 => {
-                    Gate::not_gate(&mut commands, ev.position, font.main.clone());
+                    Gate::not_gate_bs(&mut commands, ev.position, font.main.clone());
                     ms.0 = MenuStates::Idle;
                 }
                 6 => {
-                    Gate::xor_gate(&mut commands, ev.position, font.main.clone());
+                    Gate::xor_gate_bs(&mut commands, ev.position, font.main.clone());
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {
@@ -1426,11 +721,11 @@ fn handle_radial_menu_event_system(
             },
             MenuStates::Inputs => match ev.id {
                 1 => {
-                    Gate::high_const(&mut commands, font.main.clone(), ev.position);
+                    Gate::high_const(&mut commands, ev.position, font.main.clone());
                     ms.0 = MenuStates::Idle;
                 }
                 2 => {
-                    Gate::low_const(&mut commands, font.main.clone(), ev.position);
+                    Gate::low_const(&mut commands, ev.position, font.main.clone());
                     ms.0 = MenuStates::Idle;
                 }
                 3 => {
@@ -1470,7 +765,7 @@ fn handle_radial_menu_event_system(
             },
             MenuStates::Outputs => match ev.id {
                 1 => {
-                    LightBulb::new(&mut commands, Vec2::new(ev.position.x, ev.position.y));
+                    LightBulb::spawn(&mut commands, Vec2::new(ev.position.x, ev.position.y));
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {
@@ -1599,7 +894,7 @@ fn change_input_system(
             // We are going to resize it in relation to the number
             // of input connectors.
             let dists = if let Some(_) = bs {
-                let dists = Gate::get_distances(
+                let dists = get_distances(
                     gate.inputs as f32,
                     gate.outputs as f32,
                     GATE_WIDTH,
@@ -1609,12 +904,16 @@ fn change_input_system(
                 // Update bounding box
                 interact.update_size(0., 0., dists.width, dists.height);
 
-                let gate = Gate::new_body(
-                    translation.x,
-                    translation.y,
-                    translation.z,
-                    dists.width,
-                    dists.height,
+                let gate = Gate::body(
+                    Vec3::new(
+                        translation.x,
+                        translation.y,
+                        translation.z,
+                    ),
+                    Vec2::new(
+                        dists.width,
+                        dists.height,
+                    )
                 );
 
                 // Update body
@@ -1623,7 +922,7 @@ fn change_input_system(
 
                 dists
             } else {
-                Gate::get_distances(
+                get_distances(
                     gate.inputs as f32,
                     gate.outputs as f32,
                     GATE_SIZE,

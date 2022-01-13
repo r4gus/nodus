@@ -1,5 +1,7 @@
 pub mod light_bulb;
 pub mod toggle_switch;
+pub mod gate;
+pub mod connector;
 
 use core::sync::atomic::AtomicI32;
 
