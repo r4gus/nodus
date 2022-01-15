@@ -234,20 +234,38 @@ pub struct GateAssets {
     #[asset(path = "gates/not.png")]
     pub not: Handle<Image>,
 
+    #[asset(path = "gates/NOT_BS.png")]
+    pub not_bs: Handle<Image>,
+
     #[asset(path = "gates/and.png")]
     pub and: Handle<Image>,
+
+    #[asset(path = "gates/AND_BS.png")]
+    pub and_bs: Handle<Image>,
 
     #[asset(path = "gates/nand.png")]
     pub nand: Handle<Image>,
 
+    #[asset(path = "gates/NAND_BS.png")]
+    pub nand_bs: Handle<Image>,
+
     #[asset(path = "gates/or.png")]
     pub or: Handle<Image>,
+
+    #[asset(path = "gates/OR_BS.png")]
+    pub or_bs: Handle<Image>,
 
     #[asset(path = "gates/nor.png")]
     pub nor: Handle<Image>,
 
+    #[asset(path = "gates/NOR_BS.png")]
+    pub nor_bs: Handle<Image>,
+
     #[asset(path = "gates/xor.png")]
     pub xor: Handle<Image>,
+
+    #[asset(path = "gates/XOR_BS.png")]
+    pub xor_bs: Handle<Image>,
 
     #[asset(path = "gates/back.png")]
     pub back: Handle<Image>,
@@ -352,34 +370,34 @@ fn handle_radial_menu_event_system(
                         items: vec![
                             (assets.back.clone(), "back".to_string(), Vec2::new(80., 80.)),
                             (
-                                assets.and.clone(),
+                                assets.and_bs.clone(),
                                 "AND gate".to_string(),
-                                Vec2::new(100., 40.),
+                                Vec2::new(80., 80.),
                             ),
                             (
-                                assets.nand.clone(),
+                                assets.nand_bs.clone(),
                                 "NAND gate".to_string(),
-                                Vec2::new(100., 40.),
+                                Vec2::new(80., 80.),
                             ),
                             (
-                                assets.or.clone(),
+                                assets.or_bs.clone(),
                                 "OR gate".to_string(),
-                                Vec2::new(100., 40.),
+                                Vec2::new(80., 80.),
                             ),
                             (
-                                assets.nor.clone(),
+                                assets.nor_bs.clone(),
                                 "NOR gate".to_string(),
-                                Vec2::new(100., 40.),
+                                Vec2::new(80., 80.),
                             ),
                             (
-                                assets.not.clone(),
+                                assets.not_bs.clone(),
                                 "NOT gate".to_string(),
-                                Vec2::new(100., 40.),
+                                Vec2::new(80., 80.),
                             ),
                             (
-                                assets.xor.clone(),
+                                assets.xor_bs.clone(),
                                 "XOR gate".to_string(),
-                                Vec2::new(100., 40.),
+                                Vec2::new(80., 80.),
                             ),
                         ],
                     });
