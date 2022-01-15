@@ -1,6 +1,5 @@
 use crate::gate::core::{*, State};
 use bevy::prelude::*;
-use bevy::prelude::*;
 use bevy_prototype_lyon::{
     prelude::*,
     entity::ShapeBundle,
