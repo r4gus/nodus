@@ -3,6 +3,7 @@ pub mod toggle_switch;
 pub mod gate;
 pub mod connector;
 pub mod connection_line;
+pub mod background;
 
 use core::sync::atomic::AtomicI32;
 

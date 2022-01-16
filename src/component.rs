@@ -21,6 +21,7 @@ use crate::gate::{
         gate::*,
         connector::*,
         connection_line::*,
+        background::*,
         Z_INDEX,
         GATE_SIZE, GATE_WIDTH, GATE_HEIGHT,
     },
@@ -78,7 +79,8 @@ impl Plugin for LogicComponentSystem {
                     .with_system(draw_data_flow.system().after("draw_line"))
                     .with_system(light_bulb_system.system().before("disconnect"))
                     .with_system(toggle_switch_system.system().before("disconnect"))
-                    .with_system(line_selection_system.system().after("draw_line")),
+                    .with_system(line_selection_system.system().after("draw_line"))
+                    .with_system(draw_background_grid_system)
             )
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)

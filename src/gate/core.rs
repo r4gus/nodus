@@ -16,7 +16,8 @@ macro_rules! trans {
 pub(crate) use trans;
 
 /// The name of an entity.
-#[derive(Debug, Clone, PartialEq, Component)]
+#[derive(Debug, Clone, PartialEq, Component, Reflect, Default)]
+#[reflect(Component)]
 pub struct Name(pub String);
 
 /// The input and output states of a logic gate.
@@ -26,15 +27,19 @@ pub struct Name(pub String);
 /// doesn't get a value for each input.
 /// `High` - The sate is high (`1`).
 /// `Low` - The state is low (`0`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect, bevy::reflect::FromReflect)]
 pub enum State {
     None,
     High,
     Low,
 }
 
+impl Default for State {
+    fn default() -> Self { Self::None }
+}
+
 /// Specify the minimum and maximum number a connectors for a logic component.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Reflect, Default)]
 pub struct NodeRange {
     pub min: u32,
     pub max: u32,
@@ -48,7 +53,8 @@ pub struct NodeRange {
 /// * `outputs` - Current number of output connectors.
 /// * `in_range` - Allowed minimum and maximum of inputs connectors.
 /// * `out_range` - Allowed minimum and maximum of inputs connectors.
-#[derive(Debug, Clone, PartialEq, Component)]
+#[derive(Debug, Clone, PartialEq, Component, Reflect, Default)]
+#[reflect(Component)]
 pub struct Gate {
     pub inputs: u32,
     pub outputs: u32,
@@ -76,7 +82,7 @@ impl Gate {
             .insert(Inputs(vec![State::None; in_range.min as usize]))
             .insert(Outputs(vec![State::None; out_range.min as usize]))
             .insert(Transitions(functions))
-            .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
+            .insert(Targets(vec![TargetMap::from(HashMap::new()); out_range.min as usize]))
             .id();
 
             let mut connectors = Vec::new();
@@ -110,7 +116,7 @@ impl Gate {
             .insert(Inputs(vec![State::None; in_range.min as usize]))
             .insert(Outputs(vec![State::None; out_range.min as usize]))
             .insert(Transitions(functions))
-            .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
+            .insert(Targets(vec![TargetMap::from(HashMap::new()); out_range.min as usize]))
             .id();
 
             let mut connectors = Vec::new();
@@ -127,8 +133,13 @@ impl Gate {
 }
 
 /// Input values of a gate.
-#[derive(Debug, Clone, PartialEq, Component)]
+#[derive(Debug, Clone, PartialEq, Component, Reflect)]
+#[reflect(Component)]
 pub struct Inputs(pub Vec<State>);
+
+impl Default for Inputs {
+    fn default() -> Self { Inputs(Vec::new()) }
+}
 
 impl Deref for Inputs {
     type Target = Vec<State>;
@@ -145,8 +156,13 @@ impl DerefMut for Inputs {
 }
 
 /// Output values of a gate.
-#[derive(Debug, Clone, PartialEq, Component)]
+#[derive(Debug, Clone, PartialEq, Component, Reflect)]
+#[reflect(Component)]
 pub struct Outputs(pub Vec<State>);
+
+impl Default for Outputs {
+    fn default() -> Self { Outputs(Vec::new()) }
+}
 
 impl Deref for Outputs {
     type Target = Vec<State>;
@@ -169,6 +185,33 @@ impl DerefMut for Outputs {
 #[derive(Component)]
 pub struct Transitions(pub Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>);
 
+impl Default for Transitions {
+    fn default() -> Self { Transitions(Vec::new()) }
+}
+
+#[derive(Debug, Clone, PartialEq, Reflect, Default)]
+pub struct TIndex(pub Vec<usize>);
+
+impl Deref for TIndex {
+    type Target = Vec<usize>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for TIndex {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<Vec<usize>> for TIndex {
+    fn from(v: Vec<usize>) -> Self {
+        Self(v)
+    }
+}
+
 /// Type that maps form a logc component (gate, input control, ...) to a set
 /// of inputs, specified by a index.
 ///
@@ -176,7 +219,28 @@ pub struct Transitions(pub Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>);
 /// can be connected to multiple inputs of another logic component. 
 /// This map is meant to keep track of all inputs of logic
 /// components a output is connected to.
-type TargetMap = HashMap<Entity, Vec<usize>>;
+#[derive(Debug, Clone, PartialEq)]
+pub struct TargetMap(pub HashMap<Entity, TIndex>);
+
+impl Deref for TargetMap {
+    type Target = HashMap<Entity, TIndex>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for TargetMap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<HashMap<Entity, TIndex>> for TargetMap {
+    fn from(map: HashMap<Entity, TIndex>) -> Self {
+        Self(map)
+    }
+}
 
 /// A vector that maps from outputs to connected nodes.
 ///
@@ -184,6 +248,10 @@ type TargetMap = HashMap<Entity, Vec<usize>>;
 /// each output.
 #[derive(Debug, Clone, PartialEq, Component)]
 pub struct Targets(pub Vec<TargetMap>);
+
+impl Default for Targets {
+    fn default() -> Self { Targets(Vec::new()) }
+}
 
 impl Deref for Targets {
     type Target = Vec<TargetMap>;
@@ -358,9 +426,9 @@ pub fn transition_system(mut query: Query<(&Inputs, &Transitions, &mut Outputs)>
 pub fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Query<&mut Inputs>) {
     for (outputs, targets) in from_query.iter() {
         for i in 0..outputs.len() {
-            for (&entity, idxvec) in &targets[i] {
+            for (&entity, idxvec) in targets[i].iter() {
                 if let Ok(mut inputs) = to_query.get_mut(entity) {
-                    for &j in idxvec {
+                    for &j in idxvec.iter() {
                         if j < inputs.len() {
                             inputs[j] = outputs[i];
                         }
@@ -434,7 +502,7 @@ pub fn connect_event_system(
             if let Ok(mut targets) = q_parent.get_mut(parent.0) {
                 targets[ev.output_index]
                     .entry(input_parent)
-                    .or_insert(Vec::new())
+                    .or_insert(TIndex::from(Vec::new()))
                     .push(ev.input_index);
             }
         }

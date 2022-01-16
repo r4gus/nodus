@@ -156,8 +156,8 @@ pub fn draw_line_system(
                             GeometryBuilder::build_as(
                                 &ConnectionLineShape { via: &via },
                                 DrawMode::Stroke(StrokeMode::new(
-                                    Color::rgba(0.62, 0.79, 0.94, 0.3),
-                                    12.0,
+                                    Color::rgba(0.62, 0.79, 0.94, 0.5),
+                                    18.0,
                                 )),
                                 Transform::from_xyz(0., 0., 0.),
                             )

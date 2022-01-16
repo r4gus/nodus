@@ -29,7 +29,7 @@ fn main() {
         .build(&mut app);
 
     app.add_state(GameState::AssetLoading)
-        .insert_resource(Msaa { samples: 4 })
+        .insert_resource(Msaa { samples: 1 })
         .insert_resource(ClearColor(Color::rgb(0.75, 0.75, 0.75)))
         .insert_resource(WindowDescriptor {
             title: "nodus".to_string(),

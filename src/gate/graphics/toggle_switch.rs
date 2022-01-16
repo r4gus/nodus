@@ -42,7 +42,7 @@ impl ToggleSwitch {
             .insert(Inputs(vec![State::Low]))
             .insert(Outputs(vec![State::Low]))
             .insert(Transitions(trans![|inputs| inputs[0]]))
-            .insert(Targets(vec![HashMap::new()]))
+            .insert(Targets(vec![TargetMap::from(HashMap::new())]))
             .insert(Interactable::new(
                 Vec2::new(0., 0.),
                 Vec2::new(GATE_SIZE, GATE_SIZE),

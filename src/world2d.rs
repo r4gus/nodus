@@ -82,6 +82,7 @@ pub mod camera2d {
         input_mouse: Res<Input<MouseButton>>,
         input_keyboard: Res<Input<KeyCode>>,
         mut q_camera: Query<&mut Transform, With<MainCamera>>,
+        time: Res<Time>,
     ) {
         // change input mapping for panning here.
         let pan_button = MouseButton::Middle;
@@ -107,13 +108,13 @@ pub mod camera2d {
                 transform.translation.x -= pan.x * scale;
                 transform.translation.y += pan.y * scale;
             } else if scroll.abs() > 0.0 {
-                let scale = (transform.scale.x - scroll).clamp(1.0, 10.0);
+                let scale = (transform.scale.x - scroll * time.delta_seconds()).clamp(1.0, 5.0);
                 transform.scale = Vec3::new(scale, scale, scale);
             }
         }
     }
 
-    fn get_primary_window_size(windows: &Res<Windows>) -> Vec2 {
+    pub fn get_primary_window_size(windows: &Res<Windows>) -> Vec2 {
         let window = windows.get_primary().unwrap();
         let window = Vec2::new(window.width() as f32, window.height() as f32);
         window

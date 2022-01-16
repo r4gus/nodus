@@ -125,7 +125,7 @@ impl Gate {
             .insert(Inputs(vec![State::None; in_range.min as usize]))
             .insert(Outputs(vec![State::None; out_range.min as usize]))
             .insert(Transitions(functions))
-            .insert(Targets(vec![HashMap::new(); out_range.min as usize]))
+            .insert(Targets(vec![TargetMap::from(HashMap::new()); out_range.min as usize]))
             .id();
 
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
