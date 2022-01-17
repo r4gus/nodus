@@ -22,6 +22,7 @@ use crate::gate::{
         connector::*,
         connection_line::*,
         background::*,
+        clk::*,
         Z_INDEX,
         GATE_SIZE, GATE_WIDTH, GATE_HEIGHT,
     },
@@ -81,6 +82,7 @@ impl Plugin for LogicComponentSystem {
                     .with_system(toggle_switch_system.system().before("disconnect"))
                     .with_system(line_selection_system.system().after("draw_line"))
                     .with_system(draw_background_grid_system)
+                    .with_system(clk_system)
             )
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
@@ -295,6 +297,9 @@ pub struct GateAssets {
 
     #[asset(path = "gates/bulb.png")]
     pub bulb: Handle<Image>,
+
+    #[asset(path = "gates/CLK.png")]
+    pub clk: Handle<Image>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -426,6 +431,11 @@ fn handle_radial_menu_event_system(
                                 "Toggle Switch".to_string(),
                                 Vec2::new(80., 80.),
                             ),
+                            (
+                                assets.clk.clone(),
+                                "Clock".to_string(),
+                                Vec2::new(70., 70.),
+                            ),
                         ],
                     });
                     ms.0 = MenuStates::Inputs;
@@ -518,6 +528,10 @@ fn handle_radial_menu_event_system(
                     ToggleSwitch::new(&mut commands, Vec2::new(ev.position.x, ev.position.y));
                     ms.0 = MenuStates::Idle;
                 }
+                4 => {
+                    Clk::spawn(&mut commands, Vec2::new(ev.position.x, ev.position.y));
+                    ms.0 = MenuStates::Idle;
+                }
                 _ => {
                     ev_open.send(OpenMenuEvent {
                         position: ev.position,
@@ -597,11 +611,11 @@ struct ChangeInput {
 
 fn ui_node_info_system(
     egui_context: ResMut<EguiContext>,
-    q_gate: Query<(Entity, &Name, Option<&Gate>), With<Selected>>,
+    mut q_gate: Query<(Entity, &Name, Option<&Gate>, Option<&mut Clk>), With<Selected>>,
     mut ev_change: EventWriter<ChangeInput>,
     mut mb: ResMut<Input<MouseButton>>,
 ) {
-    if let Ok((entity, name, gate)) = q_gate.get_single() {
+    if let Ok((entity, name, gate, mut clk)) = q_gate.get_single_mut() {
         if let Some(response) = egui::Window::new(&name.0)
             .title_bar(false)
             .anchor(egui::Align2::RIGHT_BOTTOM, egui::Vec2::new(-5., -5.))
@@ -637,6 +651,23 @@ fn ui_node_info_system(
                             mb.reset(MouseButton::Left);
                         }
                     }
+                }
+
+                if let Some(ref mut clk) = clk {
+                    let mut clk_f32 = clk.0 * 1000.;
+                    if ui
+                        .horizontal(|ui| {
+                            ui.label("Signal Duration: ");
+                            ui.add(egui::DragValue::new(&mut clk_f32)
+                                    .speed(1.0)
+                                    .clamp_range(std::ops::RangeInclusive::new(250.0, 600000.0))); 
+                        })
+                        .response
+                        .hovered()
+                    {
+                        mb.reset(MouseButton::Left);
+                    }
+                    clk.0 = clk_f32 / 1000.;
                 }
             })
         {

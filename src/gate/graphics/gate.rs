@@ -351,7 +351,7 @@ impl Gate {
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
             trans![|inputs| {
-                let mut ret = State::None;
+                let mut ret = State::Low;
                 for i in inputs {
                     match i {
                         State::None => {}

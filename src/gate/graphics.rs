@@ -1,5 +1,6 @@
 pub mod light_bulb;
 pub mod toggle_switch;
+pub mod clk;
 pub mod gate;
 pub mod connector;
 pub mod connection_line;

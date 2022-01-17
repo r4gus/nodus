@@ -6,6 +6,7 @@ use super::{
         light_bulb::*,
         toggle_switch::*,
         gate::*,
+        clk::*,
     },
 };
 
@@ -17,7 +18,7 @@ pub fn drag_gate_system(
         Entity,
         (
             With<Drag>,
-            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>)>,
+            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>,
         ),
     >,
 ) {
@@ -37,7 +38,7 @@ pub fn delete_gate_system(
         (Entity, &Children),
         (
             With<Selected>,
-            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>)>,
+            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>,
         ),
     >,
     q_connectors: Query<&Connections>,
