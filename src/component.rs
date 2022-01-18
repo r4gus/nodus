@@ -1,8 +1,9 @@
 use crate::radial_menu::{OpenMenuEvent, PropagateSelectionEvent, UpdateCursorPositionEvent};
 use crate::{FontAssets, GameState};
 use bevy::prelude::*;
+use bevy::app::AppExit;
 use bevy_asset_loader::{AssetCollection, AssetLoader};
-use bevy_egui::{egui, EguiContext};
+use bevy_egui::{egui, EguiContext, EguiSettings};
 use bevy_prototype_lyon::entity::ShapeBundle;
 use bevy_prototype_lyon::prelude::*;
 use bevy_prototype_lyon::shapes::SvgPathShape;
@@ -13,6 +14,7 @@ use lyon_tessellation::path::path::Builder;
 use std::collections::HashMap;
 
 use crate::gate::{
+    ui::*,
     core::{*, State, Name, trans},
     systems::*,
     graphics::{
@@ -27,6 +29,7 @@ use crate::gate::{
         GATE_SIZE, GATE_WIDTH, GATE_HEIGHT,
     },
 };
+use nodus::world2d::camera2d::MainCamera;
 
 pub struct LogicComponentSystem;
 
@@ -48,7 +51,9 @@ impl Plugin for LogicComponentSystem {
                 SystemSet::on_update(GameState::InGame)
                     .before("interaction2d")
                     .label("level3_node_set")
-                    .with_system(ui_node_info_system.system()),
+                    .with_system(ui_node_info_system.system())
+                    .with_system(ui_top_panel_system)
+                    .with_system(ui_scroll_system)
             )
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
@@ -77,7 +82,7 @@ impl Plugin for LogicComponentSystem {
                             .label("draw_line")
                             .before("disconnect"),
                     )
-                    .with_system(draw_data_flow.system().after("draw_line"))
+                    //.with_system(draw_data_flow.system().after("draw_line"))
                     .with_system(light_bulb_system.system().before("disconnect"))
                     .with_system(toggle_switch_system.system().before("disconnect"))
                     .with_system(line_selection_system.system().after("draw_line"))
@@ -92,12 +97,20 @@ impl Plugin for LogicComponentSystem {
                     .with_system(handle_radial_menu_event_system.system())
                     .with_system(update_radial_menu_system.system())
             )
-            .add_system_set(SystemSet::on_enter(GameState::InGame).with_system(setup.system()));
+            .add_system_set(SystemSet::on_enter(GameState::InGame)
+                    .with_system(setup.system())
+                    .with_system(update_ui_scale_factor)
+            );
 
         info!("NodePlugin loaded");
     }
 }
 
+fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
+    if let Some(window) = windows.get_primary() {
+        egui_settings.scale_factor = 1.5;
+    }
+}
 
 
 impl Gate {
@@ -604,201 +617,3 @@ fn handle_radial_menu_event_system(
     }
 }
 
-struct ChangeInput {
-    gate: Entity,
-    to: u32,
-}
-
-fn ui_node_info_system(
-    egui_context: ResMut<EguiContext>,
-    mut q_gate: Query<(Entity, &Name, Option<&Gate>, Option<&mut Clk>), With<Selected>>,
-    mut ev_change: EventWriter<ChangeInput>,
-    mut mb: ResMut<Input<MouseButton>>,
-) {
-    if let Ok((entity, name, gate, mut clk)) = q_gate.get_single_mut() {
-        if let Some(response) = egui::Window::new(&name.0)
-            .title_bar(false)
-            .anchor(egui::Align2::RIGHT_BOTTOM, egui::Vec2::new(-5., -5.))
-            .show(egui_context.ctx(), |ui| {
-                ui.label(&name.0);
-
-                if let Some(gate) = gate {
-                    if gate.in_range.min != gate.in_range.max {
-                        if ui
-                            .horizontal(|ui| {
-                                ui.label("Input Count: ");
-                                if ui.button("➖").clicked() {
-                                    if gate.inputs > gate.in_range.min {
-                                        ev_change.send(ChangeInput {
-                                            gate: entity,
-                                            to: gate.inputs - 1,
-                                        });
-                                    }
-                                }
-                                ui.label(format!("{}", gate.inputs));
-                                if ui.button("➕").clicked() {
-                                    if gate.inputs < gate.in_range.max {
-                                        ev_change.send(ChangeInput {
-                                            gate: entity,
-                                            to: gate.inputs + 1,
-                                        });
-                                    }
-                                }
-                            })
-                            .response
-                            .hovered()
-                        {
-                            mb.reset(MouseButton::Left);
-                        }
-                    }
-                }
-
-                if let Some(ref mut clk) = clk {
-                    let mut clk_f32 = clk.0 * 1000.;
-                    if ui
-                        .horizontal(|ui| {
-                            ui.label("Signal Duration: ");
-                            ui.add(egui::DragValue::new(&mut clk_f32)
-                                    .speed(1.0)
-                                    .clamp_range(std::ops::RangeInclusive::new(250.0, 600000.0))); 
-                        })
-                        .response
-                        .hovered()
-                    {
-                        mb.reset(MouseButton::Left);
-                    }
-                    clk.0 = clk_f32 / 1000.;
-                }
-            })
-        {
-            if response.response.hovered() {
-                mb.reset(MouseButton::Left);
-            }
-        }
-    }
-
-    egui::TopBottomPanel::top("side").show(egui_context.ctx(), |ui| {
-        ui.label("Hello World");
-    });
-}
-
-fn change_input_system(
-    mut commands: Commands,
-    mut ev_connect: EventReader<ChangeInput>,
-    mut ev_disconnect: EventWriter<DisconnectEvent>,
-    mut q_gate: Query<(
-        Entity,
-        &mut Gate,
-        &mut Inputs,
-        &mut Interactable,
-        &GlobalTransform,
-        Option<&BritishStandard>,
-    )>,
-    q_connectors: Query<&Children>,
-    mut q_connector: Query<(&mut Connector, &mut Transform, &Connections)>,
-) {
-    for ev in ev_connect.iter() {
-        if let Ok((gent, mut gate, mut inputs, mut interact, transform, bs)) = q_gate.get_mut(ev.gate) {
-            // Update input count
-            gate.inputs = ev.to;
-
-            let translation = transform.translation;
-
-            // Update input vector
-            inputs.resize(gate.inputs as usize, State::None);
-
-            // If the logic component is BS it has a box as body.
-            // We are going to resize it in relation to the number
-            // of input connectors.
-            let dists = if let Some(_) = bs {
-                let dists = get_distances(
-                    gate.inputs as f32,
-                    gate.outputs as f32,
-                    GATE_WIDTH,
-                    GATE_HEIGHT,
-                );
-
-                // Update bounding box
-                interact.update_size(0., 0., dists.width, dists.height);
-
-                let gate = Gate::body(
-                    Vec3::new(
-                        translation.x,
-                        translation.y,
-                        translation.z,
-                    ),
-                    Vec2::new(
-                        dists.width,
-                        dists.height,
-                    )
-                );
-
-                // Update body
-                commands.entity(ev.gate).remove_bundle::<ShapeBundle>();
-                commands.entity(ev.gate).insert_bundle(gate);
-
-                dists
-            } else {
-                get_distances(
-                    gate.inputs as f32,
-                    gate.outputs as f32,
-                    GATE_SIZE,
-                    GATE_SIZE,
-                )
-            };
-
-            // Update connectors attached to this gate
-            let mut max = 0;
-            if let Ok(connectors) = q_connectors.get(ev.gate) {
-                for connector in connectors.iter() {
-                    if let Ok((conn, mut trans, conns)) = q_connector.get_mut(*connector) {
-                        if conn.ctype == ConnectorType::In {
-                            if conn.index < ev.to as usize {
-                                trans.translation = Vec3::new(
-                                    -GATE_SIZE * 0.6,
-                                    dists.offset + (conn.index + 1) as f32 * dists.in_step,
-                                    0.,
-                                );
-                                if max < conn.index {
-                                    max = conn.index;
-                                }
-                            } else {
-                                // Remove connector if neccessary. This includes logical
-                                // links between gates and connection line entities.
-                                for &c in conns.iter() {
-                                    ev_disconnect.send(DisconnectEvent {
-                                        connection: c,
-                                        in_parent: Some(gent),
-                                    });
-                                }
-
-                                // Finally remove entity.
-                                commands.entity(*connector).despawn_recursive();
-                            }
-                        }
-                    }
-                }
-            }
-
-            // If the expected amount of connectors exceeds the factual
-            // amount, add new connectors to the gate.
-            let mut entvec: Vec<Entity> = Vec::new();
-            for i in (max + 2)..=ev.to as usize {
-                entvec.push(Connector::with_line(
-                    &mut commands,
-                    Vec3::new(
-                        -GATE_SIZE * 0.6,
-                        dists.offset + i as f32 * dists.in_step,
-                        translation.z,
-                    ),
-                    GATE_SIZE * 0.1,
-                    ConnectorType::In,
-                    (i - 1),
-                ));
-            }
-            if !entvec.is_empty() {
-                commands.entity(ev.gate).push_children(&entvec);
-            }
-        }
-    }
-}

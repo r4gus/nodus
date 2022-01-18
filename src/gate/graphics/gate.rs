@@ -401,3 +401,131 @@ impl Gate {
         );
     }
 }
+
+
+pub struct ChangeInput {
+    pub gate: Entity,
+    pub to: u32,
+}
+
+
+pub fn change_input_system(
+    mut commands: Commands,
+    mut ev_connect: EventReader<ChangeInput>,
+    mut ev_disconnect: EventWriter<DisconnectEvent>,
+    mut q_gate: Query<(
+        Entity,
+        &mut Gate,
+        &mut Inputs,
+        &mut Interactable,
+        &GlobalTransform,
+        Option<&BritishStandard>,
+    )>,
+    q_connectors: Query<&Children>,
+    mut q_connector: Query<(&mut Connector, &mut Transform, &Connections)>,
+) {
+    for ev in ev_connect.iter() {
+        if let Ok((gent, mut gate, mut inputs, mut interact, transform, bs)) = q_gate.get_mut(ev.gate) {
+            // Update input count
+            gate.inputs = ev.to;
+
+            let translation = transform.translation;
+
+            // Update input vector
+            inputs.resize(gate.inputs as usize, State::None);
+
+            // If the logic component is BS it has a box as body.
+            // We are going to resize it in relation to the number
+            // of input connectors.
+            let dists = if let Some(_) = bs {
+                let dists = get_distances(
+                    gate.inputs as f32,
+                    gate.outputs as f32,
+                    GATE_WIDTH,
+                    GATE_HEIGHT,
+                );
+
+                // Update bounding box
+                interact.update_size(0., 0., dists.width, dists.height);
+
+                let gate = Gate::body(
+                    Vec3::new(
+                        translation.x,
+                        translation.y,
+                        translation.z,
+                    ),
+                    Vec2::new(
+                        dists.width,
+                        dists.height,
+                    )
+                );
+
+                // Update body
+                commands.entity(ev.gate).remove_bundle::<ShapeBundle>();
+                commands.entity(ev.gate).insert_bundle(gate);
+
+                dists
+            } else {
+                get_distances(
+                    gate.inputs as f32,
+                    gate.outputs as f32,
+                    GATE_SIZE,
+                    GATE_SIZE,
+                )
+            };
+
+            // Update connectors attached to this gate
+            let mut max = 0;
+            if let Ok(connectors) = q_connectors.get(ev.gate) {
+                for connector in connectors.iter() {
+                    if let Ok((conn, mut trans, conns)) = q_connector.get_mut(*connector) {
+                        if conn.ctype == ConnectorType::In {
+                            if conn.index < ev.to as usize {
+                                trans.translation = Vec3::new(
+                                    -GATE_SIZE * 0.6,
+                                    dists.offset + (conn.index + 1) as f32 * dists.in_step,
+                                    0.,
+                                );
+                                if max < conn.index {
+                                    max = conn.index;
+                                }
+                            } else {
+                                // Remove connector if neccessary. This includes logical
+                                // links between gates and connection line entities.
+                                for &c in conns.iter() {
+                                    ev_disconnect.send(DisconnectEvent {
+                                        connection: c,
+                                        in_parent: Some(gent),
+                                    });
+                                }
+
+                                // Finally remove entity.
+                                commands.entity(*connector).despawn_recursive();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If the expected amount of connectors exceeds the factual
+            // amount, add new connectors to the gate.
+            let mut entvec: Vec<Entity> = Vec::new();
+            for i in (max + 2)..=ev.to as usize {
+                entvec.push(Connector::with_line(
+                    &mut commands,
+                    Vec3::new(
+                        -GATE_SIZE * 0.6,
+                        dists.offset + i as f32 * dists.in_step,
+                        translation.z,
+                    ),
+                    GATE_SIZE * 0.1,
+                    ConnectorType::In,
+                    (i - 1),
+                ));
+            }
+            if !entvec.is_empty() {
+                commands.entity(ev.gate).push_children(&entvec);
+            }
+        }
+    }
+}

@@ -137,16 +137,16 @@ pub fn draw_line_system(
                     via[3],
                 );
 
-                commands
+                let new_ent = commands
                     .entity(entity)
                     .insert_bundle(GeometryBuilder::build_as(
                         &ConnectionLineShape { via: &via },
                         DrawMode::Stroke(StrokeMode::new(color, 8.0)),
                         Transform::from_xyz(0., 0., 1.),
-                    ));
+                    )).id();
 
                 for e in q_highlight.iter() {
-                    commands.entity(e).despawn();
+                    commands.entity(e).despawn_recursive();
                 }
                 
                 // Highlight if selected.
@@ -164,11 +164,14 @@ pub fn draw_line_system(
                         )
                         .insert(LineHighLight).id();
                     
-                    commands.entity(entity).add_child(child);
+                    commands.entity(new_ent).add_child(child);
                 } 
 
                 conn_line.via = via;
-
+                
+                /*
+                 * TODO: nice visual effect but probably distracting as well.
+                 *
                 if color == Color::BLUE && lr.count >= lr.timestep {
                     let id = commands
                         .spawn_bundle(
@@ -191,6 +194,7 @@ pub fn draw_line_system(
                     
                     commands.entity(entity).push_children(&[id]);
                 }
+                */
             }
         }
     }
@@ -239,7 +243,7 @@ pub fn delete_line_system(
 }
 
 
-
+// TODO: Deactivated for now
 pub fn draw_data_flow(
     mut commands: Commands,
     time: Res<Time>,
