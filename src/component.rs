@@ -47,6 +47,9 @@ impl Plugin for LogicComponentSystem {
                 timestep: 0.5,
                 update: false,
             })
+            .insert_resource(GuiMenu { option: GuiMenuOptions::None , open: false })
+            .add_startup_system(update_ui_scale_factor)
+            .add_startup_system(load_gui_assets)
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
                     .before("interaction2d")
@@ -54,6 +57,7 @@ impl Plugin for LogicComponentSystem {
                     .with_system(ui_node_info_system.system())
                     .with_system(ui_top_panel_system)
                     .with_system(ui_scroll_system)
+                    .with_system(ui_gui_about)
             )
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
@@ -99,19 +103,11 @@ impl Plugin for LogicComponentSystem {
             )
             .add_system_set(SystemSet::on_enter(GameState::InGame)
                     .with_system(setup.system())
-                    .with_system(update_ui_scale_factor)
             );
 
         info!("NodePlugin loaded");
     }
 }
-
-fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
-    if let Some(window) = windows.get_primary() {
-        egui_settings.scale_factor = 1.5;
-    }
-}
-
 
 impl Gate {
     fn and_gate_path() -> PathBuilder {

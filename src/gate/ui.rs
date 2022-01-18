@@ -9,6 +9,45 @@ use crate::gate::{
     graphics::gate::ChangeInput,
 };
 
+const MIT: &str = "\
+License
+
+Copyright (c) 2021-2022 David Pierre Sugar
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the Software), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.";
+
+const NODUS_LOGO_ID: u64 = 0;
+
+pub fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
+    if let Some(window) = windows.get_primary() {
+        egui_settings.scale_factor = 1.5;
+    }
+}
+
+pub fn load_gui_assets(
+    mut egui_context: ResMut<EguiContext>,
+    assets: Res<AssetServer>,
+) {
+    let texture_handle = assets.load("misc/LOGO.png");
+    egui_context.set_egui_texture(NODUS_LOGO_ID, texture_handle);
+}
+
 pub fn ui_scroll_system(
     egui_context: ResMut<EguiContext>,
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
@@ -30,27 +69,170 @@ pub fn ui_scroll_system(
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum GuiMenuOptions {
+    None,
+    Handbook,
+    About,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GuiMenu {
+    pub option: GuiMenuOptions,
+    pub open: bool,
+}
+
+pub fn ui_gui_about(
+    egui_context: ResMut<EguiContext>,
+    mut r: ResMut<GuiMenu>,
+) {
+    if let GuiMenuOptions::About = r.option {
+        egui::Window::new("About")
+            .resizable(false)
+            .collapsible(false)
+            .default_size(egui::Vec2::new(900.0, 600.0))
+            .open(&mut r.open)
+            .show(egui_context.ctx(), |ui| {
+                ui.horizontal(|ui| {
+                    ui.group(|ui| {
+                        ui.add(egui::widgets::Image::new(
+                            egui::TextureId::User(NODUS_LOGO_ID),
+                            [80., 80.],
+                        ));
+                    });
+                    ui.group(|ui| {
+                        ui.vertical(|ui| {
+                            ui.label("Nodus v0.1");
+
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label("Nodus is a digital circuit simulator written in rust, using the");
+                                ui.hyperlink_to(
+                                    format!("bevy"),
+                                    "https://bevyengine.org"
+                                );
+                                ui.label("game engine.");
+                            });
+
+                            ui.label("Copyright \u{A9} 2022 David Pierre Sugar <david(at)thesugar.de>.\n");
+
+                            ui.collapsing("Third-party libraries", |ui| {
+                                ui.label("Nodus is built on the following free software libraries:");
+
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.hyperlink_to(
+                                        format!("Bevy Game Engine"),
+                                        "https://bevyengine.org"
+                                    );
+                                    ui.label("MIT/ Apache Version 2.0");
+                                });
+
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.hyperlink_to(
+                                        format!("Bevy-Prototype-Lyon"),
+                                        "https://github.com/Nilirad/bevy_prototype_lyon"
+                                    );
+                                    ui.label("MIT/ Apache Version 2.0");
+                                });
+
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.hyperlink_to(
+                                        format!("Bevy-Egui"),
+                                        "https://github.com/mvlabat/bevy_egui"
+                                    );
+                                    ui.label("MIT");
+                                });
+
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.hyperlink_to(
+                                        format!("Egui"),
+                                        "https://github.com/emilk/egui"
+                                    );
+                                    ui.label("Apache Version 2.0");
+                                });
+
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.hyperlink_to(
+                                        format!("Bevy-Asset-Loader"),
+                                        "https://github.com/NiklasEi/bevy_asset_loader"
+                                    );
+                                    ui.label("MIT/ Apache Version 2.0");
+                                });
+
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.hyperlink_to(
+                                        format!("Lyon"),
+                                        "https://github.com/nical/lyon"
+                                    );
+                                    ui.label("Apache Version 2.0");
+                                });
+                            });
+
+                            ui.collapsing("Your Rights", |ui| {
+                                ui.label("Nodus is released under the MIT License.");
+                                ui.label("You are free to use Nodus for any purpose.");
+                                ui.with_layout(
+                                    egui::Layout::top_down(egui::Align::LEFT).with_cross_justify(true),
+                                    |ui| {
+                                        ui.label(egui::RichText::new(MIT).small().weak());
+                                    },
+                                );
+                            });
+                        });
+                    });
+                });
+            });
+    }
+}
+
 pub fn ui_top_panel_system(
     egui_context: ResMut<EguiContext>,
     mut exit: EventWriter<AppExit>,
+    mut r: ResMut<GuiMenu>,
 ) {
     egui::TopBottomPanel::top("side").show(egui_context.ctx(), |ui| {
         ui.horizontal(|ui| {
             ui.menu_button("File", |ui| {
-                if ui.button("\u{1F5C1} Open").clicked() {
-                    // TODO: Open file...
-                    ui.close_menu();
-                }
-                if ui.button("\u{1F4BE} Save All").clicked() {
-                    // TODO: Save file...
-                    ui.close_menu();
-                }
+                ui.add_enabled_ui(false, |ui| {
+                    if ui.button("\u{2B} New").clicked() {
+                        // TODO: Open file...
+                        ui.close_menu();
+                    }
+                    if ui.button("\u{1F5C1} Open").clicked() {
+                        // TODO: Open file...
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui.button("\u{1F4BE} Save").clicked() {
+                        // TODO: Save file...
+                        ui.close_menu();
+                    }
+                    if ui.button("\u{1F4BE} Save As...").clicked() {
+                        // TODO: Save file...
+                        ui.close_menu();
+                    }
+                });
                 ui.separator();
                 if ui.button("Exit").clicked() {
                     ui.close_menu();
                     exit.send(AppExit);
                 }
             });
+
+            ui.menu_button("View", |ui| {
+                if ui.button("Back to Origin").clicked() {
+                    ui.close_menu();
+                }
+            });
+
+            ui.menu_button("Help", |ui| {
+                ui.separator();
+                if ui.button("\u{FF1F} About Nodus").clicked() {
+                    r.option = GuiMenuOptions::About;
+                    r.open = true;
+                    ui.close_menu();
+                }
+            });
+
         });
     });
 }
