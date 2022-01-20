@@ -8,6 +8,7 @@ use crate::gate::{
     graphics::clk::Clk,
     graphics::gate::ChangeInput,
 };
+use nodus::file_browser::*;
 
 const MIT: &str = "\
 License
@@ -187,27 +188,28 @@ pub fn ui_gui_about(
 pub fn ui_top_panel_system(
     egui_context: ResMut<EguiContext>,
     mut exit: EventWriter<AppExit>,
+    mut fbe: EventWriter<OpenBrowserEvent>,
     mut r: ResMut<GuiMenu>,
 ) {
     egui::TopBottomPanel::top("side").show(egui_context.ctx(), |ui| {
         ui.horizontal(|ui| {
             ui.menu_button("File", |ui| {
-                ui.add_enabled_ui(false, |ui| {
+                ui.add_enabled_ui(true, |ui| {
                     if ui.button("\u{2B} New").clicked() {
                         // TODO: Open file...
                         ui.close_menu();
                     }
                     if ui.button("\u{1F5C1} Open").clicked() {
-                        // TODO: Open file...
+                        fbe.send(OpenBrowserEvent(BrowserAction::Open));
                         ui.close_menu();
                     }
                     ui.separator();
                     if ui.button("\u{1F4BE} Save").clicked() {
-                        // TODO: Save file...
+                        fbe.send(OpenBrowserEvent(BrowserAction::Save));
                         ui.close_menu();
                     }
                     if ui.button("\u{1F4BE} Save As...").clicked() {
-                        // TODO: Save file...
+                        fbe.send(OpenBrowserEvent(BrowserAction::Save));
                         ui.close_menu();
                     }
                 });

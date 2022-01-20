@@ -12,6 +12,7 @@ bevy_egui = "0.10"
 bevy_asset_loader = "0.8"
 lyon_geom = "0.17.6"
 lyon_tessellation = "0.17"
+dirs = "4.0.0"
 
 [toolchain]
 channel = "nightly"
@@ -23,4 +24,3 @@ opt-level = 3
 # Maybe also enable only a small amount of optimization for our code:
 [profile.dev]
 opt-level = 3
-

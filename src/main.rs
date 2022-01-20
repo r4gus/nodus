@@ -10,6 +10,7 @@ mod radial_menu;
 
 use component::*;
 use nodus::world2d::{camera2d::Camera2DPlugin, interaction2d::Interaction2DPlugin};
+use nodus::file_browser::*;
 
 use radial_menu::RadialMenu;
 
@@ -40,6 +41,7 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
+        .add_plugin(EguiFileBrowserPlugin)
         .add_plugin(ShapePlugin) // 2d drawing
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
