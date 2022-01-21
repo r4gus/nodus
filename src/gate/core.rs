@@ -3,6 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 macro_rules! trans {
     ( $( $fun:expr ),* ) => {
@@ -189,7 +190,7 @@ impl Default for Transitions {
     fn default() -> Self { Transitions(Vec::new()) }
 }
 
-#[derive(Debug, Clone, PartialEq, Reflect, Default)]
+#[derive(Debug, Clone, PartialEq, Reflect, Default, Deserialize, Serialize)]
 pub struct TIndex(pub Vec<usize>);
 
 impl Deref for TIndex {
@@ -219,7 +220,7 @@ impl From<Vec<usize>> for TIndex {
 /// can be connected to multiple inputs of another logic component. 
 /// This map is meant to keep track of all inputs of logic
 /// components a output is connected to.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TargetMap(pub HashMap<Entity, TIndex>);
 
 impl Deref for TargetMap {
@@ -246,7 +247,7 @@ impl From<HashMap<Entity, TIndex>> for TargetMap {
 ///
 /// For a logic node, e.g. a gate, there should be a vector entry for
 /// each output.
-#[derive(Debug, Clone, PartialEq, Component)]
+#[derive(Debug, Clone, PartialEq, Component, Deserialize, Serialize)]
 pub struct Targets(pub Vec<TargetMap>);
 
 impl Default for Targets {

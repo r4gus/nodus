@@ -13,6 +13,9 @@ bevy_asset_loader = "0.8"
 lyon_geom = "0.17.6"
 lyon_tessellation = "0.17"
 dirs = "4.0.0"
+ron = "0.7"
+serde = { version = "1", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
 
 [toolchain]
 channel = "nightly"

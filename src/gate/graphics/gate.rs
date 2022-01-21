@@ -1,4 +1,5 @@
 use crate::gate::core::{*, State};
+use crate::gate::serialize::*;
 use super::*;
 use bevy::prelude::*;
 use bevy_prototype_lyon::{
@@ -112,7 +113,7 @@ impl Gate {
         out_range: NodeRange,
         functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
         standard: SymbolStandard,
-    ) {
+    ) -> Entity {
         let gate = commands
             .spawn()
             .insert(Self {
@@ -207,12 +208,14 @@ impl Gate {
             ));
         }
         commands.entity(gate).push_children(&entvec);
+
+        gate
     }
 }
 
 impl Gate {
     pub fn not_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::spawn(
+        let g = Gate::spawn(
             commands,
             "NOT Gate",
             position,
@@ -228,10 +231,11 @@ impl Gate {
             },],
             SymbolStandard::BS(font, "1".to_string(), true),
         );
+        commands.entity(g).insert(NodeType::Not);
     }
 
     pub fn and_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::spawn(
+        let g = Gate::spawn(
             commands,
             "AND Gate",
             position,
@@ -256,10 +260,11 @@ impl Gate {
             },],
             SymbolStandard::BS(font, "&".to_string(), false),
         );
+        commands.entity(g).insert(NodeType::And);
     }
 
     pub fn nand_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::spawn(
+        let g = Gate::spawn(
             commands,
             "NAND Gate",
             position,
@@ -284,10 +289,11 @@ impl Gate {
             },],
             SymbolStandard::BS(font, "&".to_string(), true),
         );
+        commands.entity(g).insert(NodeType::Nand);
     }
 
     pub fn or_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::spawn(
+        let g = Gate::spawn(
             commands,
             "OR Gate",
             position,
@@ -312,10 +318,11 @@ impl Gate {
             },],
             SymbolStandard::BS(font, "≥1".to_string(), false),
         );
+        commands.entity(g).insert(NodeType::Or);
     }
 
     pub fn nor_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::spawn(
+        let g = Gate::spawn(
             commands,
             "NOR Gate",
             position,
@@ -340,10 +347,11 @@ impl Gate {
             },],
             SymbolStandard::BS(font, "≥1".to_string(), true),
         );
+        commands.entity(g).insert(NodeType::Nor);
     }
 
     pub fn xor_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::spawn(
+        let g = Gate::spawn(
             commands,
             "XOR Gate",
             position,
@@ -373,10 +381,11 @@ impl Gate {
             },],
             SymbolStandard::BS(font, "=1".to_string(), false),
         );
+        commands.entity(g).insert(NodeType::Xor);
     }
 
     pub fn high_const(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::spawn(
+        let g = Gate::spawn(
             commands,
             "HIGH Constant",
             position,
@@ -386,10 +395,11 @@ impl Gate {
             trans![|_| { State::High },],
             SymbolStandard::BS(font, "1".to_string(), false),
         );
+        commands.entity(g).insert(NodeType::HighConst);
     }
 
     pub fn low_const(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
-        Gate::spawn(
+        let g = Gate::spawn(
             commands,
             "Low Constant",
             position,
@@ -399,6 +409,7 @@ impl Gate {
             trans![|_| { State::Low },],
             SymbolStandard::BS(font, "0".to_string(), false),
         );
+        commands.entity(g).insert(NodeType::LowConst);
     }
 }
 

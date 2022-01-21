@@ -2,6 +2,7 @@ use crate::gate::{
     core::{*, State},
     graphics::connector::*,
 };
+use crate::gate::serialize::*;
 use super::*;
 use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable};
 use std::sync::atomic::Ordering;
@@ -70,6 +71,7 @@ impl LightBulb {
             .insert(LightBulb { state: State::None })
             .insert(Name("Light Bulb".to_string()))
             .insert(Inputs(vec![State::None]))
+            .insert(NodeType::LightBulb)
             .insert(Interactable::new(
                 Vec2::new(0., 0.),
                 Vec2::new(GATE_SIZE, GATE_SIZE),

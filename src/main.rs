@@ -10,7 +10,7 @@ mod radial_menu;
 
 use component::*;
 use nodus::world2d::{camera2d::Camera2DPlugin, interaction2d::Interaction2DPlugin};
-use nodus::file_browser::*;
+use crate::gate::file_browser::*;
 
 use radial_menu::RadialMenu;
 

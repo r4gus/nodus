@@ -17,6 +17,7 @@ use crate::gate::{
     ui::*,
     core::{*, State, Name, trans},
     systems::*,
+    serialize::*,
     graphics::{
         light_bulb::*,
         toggle_switch::*,
@@ -41,6 +42,8 @@ impl Plugin for LogicComponentSystem {
         app.add_event::<ConnectEvent>()
             .add_event::<ChangeInput>()
             .add_event::<DisconnectEvent>()
+            .add_event::<SaveEvent>()
+            .add_event::<LoadEvent>()
             .insert_resource(MenuState(MenuStates::Idle))
             .insert_resource(LineResource {
                 count: 0.,
@@ -100,6 +103,8 @@ impl Plugin for LogicComponentSystem {
                     .with_system(open_radial_menu_system.system())
                     .with_system(handle_radial_menu_event_system.system())
                     .with_system(update_radial_menu_system.system())
+                    .with_system(save_event_system)
+                    .with_system(load_event_system)
             )
             .add_system_set(SystemSet::on_enter(GameState::InGame)
                     .with_system(setup.system())

@@ -1,5 +1,6 @@
 use crate::gate::core::{*, State};
 use super::*;
+use crate::gate::serialize::*;
 use nodus::world2d::interaction2d::{Interactable, Hover, Selectable, Draggable};
 use std::sync::atomic::Ordering;
 use bevy::prelude::*;
@@ -40,6 +41,7 @@ impl Clk {
                 ))
             .insert(Clk(1.0, 0.0))
             .insert(Name("Clock".to_string()))
+            .insert(NodeType::Clock)
             .insert(Outputs(vec![State::Low]))
             .insert(Targets(vec![TargetMap::from(HashMap::new())]))
             .insert(Interactable::new(

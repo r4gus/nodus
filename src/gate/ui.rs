@@ -7,8 +7,8 @@ use crate::gate::{
     core::{*, Name},
     graphics::clk::Clk,
     graphics::gate::ChangeInput,
+    file_browser::*,
 };
-use nodus::file_browser::*;
 
 const MIT: &str = "\
 License

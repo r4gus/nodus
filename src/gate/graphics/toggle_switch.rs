@@ -1,4 +1,5 @@
 use crate::gate::core::{*, State};
+use crate::gate::serialize::*;
 use super::*;
 use nodus::world2d::interaction2d::{Interactable, Hover, Selectable, Draggable};
 use std::sync::atomic::Ordering;
@@ -43,6 +44,7 @@ impl ToggleSwitch {
             .insert(Outputs(vec![State::Low]))
             .insert(Transitions(trans![|inputs| inputs[0]]))
             .insert(Targets(vec![TargetMap::from(HashMap::new())]))
+            .insert(NodeType::ToggleSwitch)
             .insert(Interactable::new(
                 Vec2::new(0., 0.),
                 Vec2::new(GATE_SIZE, GATE_SIZE),
