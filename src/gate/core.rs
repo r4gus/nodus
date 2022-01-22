@@ -28,7 +28,7 @@ pub struct Name(pub String);
 /// doesn't get a value for each input.
 /// `High` - The sate is high (`1`).
 /// `Low` - The state is low (`0`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect, bevy::reflect::FromReflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect, bevy::reflect::FromReflect, Serialize, Deserialize)]
 pub enum State {
     None,
     High,

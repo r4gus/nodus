@@ -61,6 +61,7 @@ impl LightBulb {
     pub fn spawn(
         commands: &mut Commands,
         position: Vec2,
+        state: State,
     ) -> Entity {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
@@ -68,9 +69,9 @@ impl LightBulb {
             .spawn()
             .insert(Transform::from_xyz(position.x, position.y, z))
             .insert(GlobalTransform::from_xyz(position.x, position.y, z))
-            .insert(LightBulb { state: State::None })
+            .insert(LightBulb { state: state })
             .insert(Name("Light Bulb".to_string()))
-            .insert(Inputs(vec![State::None]))
+            .insert(Inputs(vec![state]))
             .insert(NodeType::LightBulb)
             .insert(Interactable::new(
                 Vec2::new(0., 0.),
@@ -82,7 +83,7 @@ impl LightBulb {
             .id();
 
         let bulb = commands
-            .spawn_bundle(LightBulb::shape_bundle(Color::WHITE))
+            .spawn_bundle(LightBulb::shape_bundle(if state == State::High { Color::BLUE } else { Color::WHITE }))
             .id();
 
         let child = Connector::with_line(

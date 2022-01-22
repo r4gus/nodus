@@ -104,6 +104,11 @@ impl Plugin for LogicComponentSystem {
                     .with_system(handle_radial_menu_event_system.system())
                     .with_system(update_radial_menu_system.system())
                     .with_system(save_event_system)
+                    // The link_gates_system requires entities spawned by the
+                    // load_event_system. To make sure the entities can be
+                    // queried the link_gates_system must always run before the
+                    // load_event_system, so one can be sure that all entites
+                    // have been inserted into the world.
                     .with_system(link_gates_system.label("link_gates_system"))
                     .with_system(load_event_system.after("link_gates_system"))
             )
@@ -540,11 +545,11 @@ fn handle_radial_menu_event_system(
                     ms.0 = MenuStates::Idle;
                 }
                 3 => {
-                    ToggleSwitch::new(&mut commands, Vec2::new(ev.position.x, ev.position.y));
+                    ToggleSwitch::new(&mut commands, Vec2::new(ev.position.x, ev.position.y), State::Low);
                     ms.0 = MenuStates::Idle;
                 }
                 4 => {
-                    Clk::spawn(&mut commands, Vec2::new(ev.position.x, ev.position.y));
+                    Clk::spawn(&mut commands, Vec2::new(ev.position.x, ev.position.y), 1.0, 0.0, State::Low);
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {
@@ -580,7 +585,7 @@ fn handle_radial_menu_event_system(
             },
             MenuStates::Outputs => match ev.id {
                 1 => {
-                    LightBulb::spawn(&mut commands, Vec2::new(ev.position.x, ev.position.y));
+                    LightBulb::spawn(&mut commands, Vec2::new(ev.position.x, ev.position.y), State::None);
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {

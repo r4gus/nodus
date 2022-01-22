@@ -21,7 +21,10 @@ impl Clk {
     pub fn spawn(
         commands: &mut Commands,
         position: Vec2,
-    ) {
+        clk: f32,
+        start: f32,
+        state: State,
+    ) -> Entity {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
         let shape = shapes::Rectangle {
@@ -39,10 +42,10 @@ impl Clk {
                     },
                     Transform::from_xyz(position.x, position.y, z),
                 ))
-            .insert(Clk(1.0, 0.0))
+            .insert(Clk(clk, start))
             .insert(Name("Clock".to_string()))
             .insert(NodeType::Clock)
-            .insert(Outputs(vec![State::Low]))
+            .insert(Outputs(vec![state]))
             .insert(Targets(vec![TargetMap::from(HashMap::new())]))
             .insert(Interactable::new(
                 Vec2::new(0., 0.),
@@ -55,7 +58,7 @@ impl Clk {
                 parent.spawn_bundle(
                     GeometryBuilder::build_as(
                         &ClkShape { size: GATE_SIZE / 2. },
-                        DrawMode::Stroke(StrokeMode::new(Color::BLACK, 16.0)),
+                        DrawMode::Stroke(StrokeMode::new(if state == State::High { Color::BLUE } else { Color::BLACK }, 16.0)),
                         Transform::from_xyz(0., 0., 1.),
                     )
                 );
@@ -70,6 +73,7 @@ impl Clk {
         );
 
         commands.entity(clk).add_child(conn);
+        clk
     }
 }
 

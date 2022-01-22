@@ -166,6 +166,14 @@ pub fn ui_gui_about(
                                     );
                                     ui.label("Apache Version 2.0");
                                 });
+
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.hyperlink_to(
+                                        format!("Rusty Object Notation"),
+                                        "https://github.com/ron-rs/ron"
+                                    );
+                                    ui.label("Apache Version 2.0");
+                                });
                             });
 
                             ui.collapsing("Your Rights", |ui| {

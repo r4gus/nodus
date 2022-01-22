@@ -2,8 +2,9 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::{
     gate::{
-        core::{*, Name},
+        core::{*, Name, State},
         graphics::{
+            clk::*,
             gate::*,
             toggle_switch::*,
             light_bulb::*,
@@ -15,6 +16,12 @@ use ron::ser::{to_string_pretty, PrettyConfig};
 use chrono::prelude::*;
 use std::fs::{self, DirEntry};
 use std::collections::HashMap;
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Version {
+    major: u8,
+    minor: u8,
+}
 
 #[derive(Debug, Clone, Component, Deserialize, Serialize)]
 pub enum NodeType {
@@ -32,6 +39,13 @@ pub enum NodeType {
     LightBulb,
 }
 
+#[derive(Debug, Clone, Component, Deserialize, Serialize)]
+pub enum NodeState {
+    ToggleSwitch(State),
+    Clock(f32, f32, State),
+    LightBulb(State),
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NodusComponent {
     id: Entity,
@@ -41,12 +55,14 @@ pub struct NodusComponent {
     targets: Option<Targets>,
     position: Vec2,
     ntype: NodeType,
+    state: Option<NodeState>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NodusSave {
     time: DateTime<chrono::Local>,
     application: String,
+    version: Version,
     entities: Vec<NodusComponent>,
 }
 
@@ -54,16 +70,26 @@ pub struct SaveEvent(pub String);
 pub struct LoadEvent(pub String);
 
 pub fn save_event_system(
-    q_node: Query<(Entity, &Name, Option<&Inputs>, Option<&Outputs>, Option<&Targets>, &Transform, &NodeType)>,
+    q_node: Query<(Entity, &Name, Option<&Inputs>, Option<&Outputs>, Option<&Targets>, Option<&Clk>, &Transform, &NodeType)>,
     mut ev_save: EventReader<SaveEvent>,
 ) {
     for ev in ev_save.iter() {
         let mut save = Vec::new();
 
-        for (e, n, i, o, t, tr, nt) in q_node.iter() {
-            let i = if let Some(i) = i { Some(i.len()) } else { None };
-            let o = if let Some(o) = o { Some(o.len()) } else { None };
+        for (e, n, ip, op, t, clk, tr, nt) in q_node.iter() {
+            let i = if let Some(i) = ip { Some(i.len()) } else { None };
+            let o = if let Some(o) = op { Some(o.len()) } else { None };
             let t = if let Some(t) = t { Some(t.clone()) } else { None };
+
+            let state = match &nt {
+                NodeType::ToggleSwitch => Some(NodeState::ToggleSwitch(op.unwrap()[0])),
+                NodeType::Clock => {
+                    let clk = clk.unwrap();
+                    Some(NodeState::Clock(clk.0, clk.1, op.unwrap()[0]))
+                },
+                NodeType::LightBulb => Some(NodeState::LightBulb(ip.unwrap()[0])),
+                _ => None
+            };
 
             let nc = NodusComponent {
                 id: e,
@@ -73,6 +99,7 @@ pub fn save_event_system(
                 targets: t,
                 position: Vec2::new(tr.translation.x, tr.translation.y),
                 ntype: nt.clone(),
+                state: state,
             };
             save.push(nc);
         }
@@ -80,6 +107,7 @@ pub fn save_event_system(
         let nsave = NodusSave {
             time: chrono::Local::now(),
             application: String::from("Nodus - A logic gate simulator"),
+            version: Version { major: 0, minor: 1 }, 
             entities: save,
         };
         
@@ -248,15 +276,22 @@ pub fn load_event_system(
                             id_map.insert(e.id, id);
                         },
                         NodeType::ToggleSwitch => {
-                            let id = ToggleSwitch::new(&mut commands, e.position);
-                            id_map.insert(e.id, id);
+                            if let Some(NodeState::ToggleSwitch(state)) = e.state {
+                                let id = ToggleSwitch::new(&mut commands, e.position, state);
+                                id_map.insert(e.id, id);
+                            }
                         },
                         NodeType::Clock => {
-
+                            if let Some(NodeState::Clock(x1, x2, x3)) = e.state {
+                                let id = Clk::spawn(&mut commands, e.position, x1, x2, x3);
+                                id_map.insert(e.id, id);
+                            }
                         },
                         NodeType::LightBulb => {
-                            let id = LightBulb::spawn(&mut commands, e.position);
-                            id_map.insert(e.id, id);
+                            if let Some(NodeState::LightBulb(state)) = e.state {
+                                let id = LightBulb::spawn(&mut commands, e.position, state);
+                                id_map.insert(e.id, id);
+                            }
                         },
                     }
                 }

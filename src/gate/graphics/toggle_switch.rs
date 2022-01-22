@@ -24,6 +24,7 @@ impl ToggleSwitch {
     pub fn new(
         commands: &mut Commands,
         position: Vec2,
+        state: State,
     ) -> Entity {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
@@ -40,8 +41,8 @@ impl ToggleSwitch {
             .spawn_bundle(switch)
             .insert(ToggleSwitch)
             .insert(Name("Toggle Switch".to_string()))
-            .insert(Inputs(vec![State::Low]))
-            .insert(Outputs(vec![State::Low]))
+            .insert(Inputs(vec![state]))
+            .insert(Outputs(vec![state]))
             .insert(Transitions(trans![|inputs| inputs[0]]))
             .insert(Targets(vec![TargetMap::from(HashMap::new())]))
             .insert(NodeType::ToggleSwitch)
@@ -61,6 +62,8 @@ impl ToggleSwitch {
             ConnectorType::Out,
             0,
         );
+        
+        let factor = if state == State::High { 1. } else { -1. };
 
         let nod = GeometryBuilder::build_as(
             &shapes::Circle {
@@ -71,7 +74,7 @@ impl ToggleSwitch {
                 fill_mode: FillMode::color(Color::WHITE),
                 outline_mode: StrokeMode::new(Color::BLACK, 8.0),
             },
-            Transform::from_xyz(-GATE_SIZE / 4., 0., 1.),
+            Transform::from_xyz(factor * GATE_SIZE / 4., 0., 1.),
         );
 
         let nod_child = commands
