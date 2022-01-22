@@ -61,7 +61,7 @@ impl LightBulb {
     pub fn spawn(
         commands: &mut Commands,
         position: Vec2,
-    ) {
+    ) -> Entity {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
         let parent = commands
@@ -94,6 +94,7 @@ impl LightBulb {
         );
 
         commands.entity(parent).push_children(&vec![bulb, child]);
+        parent
     }
 }
 

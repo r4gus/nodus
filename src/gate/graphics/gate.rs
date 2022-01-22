@@ -111,22 +111,24 @@ impl Gate {
         size: Vec2,
         in_range: NodeRange,
         out_range: NodeRange,
+        ins: usize,
+        outs: usize,
         functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
         standard: SymbolStandard,
     ) -> Entity {
         let gate = commands
             .spawn()
             .insert(Self {
-                inputs: in_range.min,
-                outputs: out_range.min,
+                inputs: ins as u32,
+                outputs: outs as u32,
                 in_range,
                 out_range,
             })
             .insert(Name(name.to_string()))
-            .insert(Inputs(vec![State::None; in_range.min as usize]))
-            .insert(Outputs(vec![State::None; out_range.min as usize]))
+            .insert(Inputs(vec![State::None; ins]))
+            .insert(Outputs(vec![State::None; outs]))
             .insert(Transitions(functions))
-            .insert(Targets(vec![TargetMap::from(HashMap::new()); out_range.min as usize]))
+            .insert(Targets(vec![TargetMap::from(HashMap::new()); outs]))
             .id();
 
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
@@ -134,13 +136,13 @@ impl Gate {
 
         match standard {
             SymbolStandard::ANSI(path) => {
-                distances = get_distances(in_range.min as f32, out_range.min as f32, size.x, size.y);
+                distances = get_distances(ins as f32, outs as f32, size.x, size.y);
                 commands.entity(gate).insert_bundle(Gate::body_from_path(Vec3::new(position.x, position.y, z), path));
             },
             SymbolStandard::BS(font, symbol, inverted) => {
-                distances = get_distances(in_range.min as f32, out_range.min as f32, size.x, size.y);
+                distances = get_distances(ins as f32, outs as f32, size.x, size.y);
                 commands.entity(gate)
-                    .insert_bundle(Gate::body(Vec3::new(position.x, position.y, z), Vec2::new(size.x, size.y)))
+                    .insert_bundle(Gate::body(Vec3::new(position.x, position.y, z), Vec2::new(distances.width, distances.height)))
                     .insert(BritishStandard);
 
                 let symbol = commands
@@ -181,7 +183,7 @@ impl Gate {
             .insert(Draggable { update: true });
 
         let mut entvec: Vec<Entity> = Vec::new();
-        for i in 1..=in_range.min {
+        for i in 1..=ins {
             entvec.push(Connector::with_line(
                 commands,
                 Vec3::new(
@@ -194,7 +196,7 @@ impl Gate {
                 (i - 1) as usize,
             ));
         }
-        for i in 1..=out_range.min {
+        for i in 1..=outs {
             entvec.push(Connector::with_line(
                 commands,
                 Vec3::new(
@@ -214,7 +216,7 @@ impl Gate {
 }
 
 impl Gate {
-    pub fn not_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
+    pub fn not_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
         let g = Gate::spawn(
             commands,
             "NOT Gate",
@@ -222,6 +224,8 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 1, max: 1 },
             NodeRange { min: 1, max: 1 },
+            ins,
+            outs,
             trans![|inputs| {
                 match inputs[0] {
                     State::None => State::None,
@@ -232,9 +236,14 @@ impl Gate {
             SymbolStandard::BS(font, "1".to_string(), true),
         );
         commands.entity(g).insert(NodeType::Not);
+        g
     }
 
-    pub fn and_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
+    pub fn not_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
+        Self::not_gate_bs_(commands, position, 1, 1, font)
+    }
+
+    pub fn and_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
         let g = Gate::spawn(
             commands,
             "AND Gate",
@@ -242,6 +251,7 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
+            ins, outs,
             trans![|inputs| {
                 let mut ret = State::High;
                 for i in inputs {
@@ -261,9 +271,14 @@ impl Gate {
             SymbolStandard::BS(font, "&".to_string(), false),
         );
         commands.entity(g).insert(NodeType::And);
+        g
     }
 
-    pub fn nand_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
+    pub fn and_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
+        Self::and_gate_bs_(commands, position, 2, 1, font)
+    }
+
+    pub fn nand_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
         let g = Gate::spawn(
             commands,
             "NAND Gate",
@@ -271,6 +286,7 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
+            ins, outs,
             trans![|inputs| {
                 let mut ret = State::Low;
                 for i in inputs {
@@ -290,9 +306,14 @@ impl Gate {
             SymbolStandard::BS(font, "&".to_string(), true),
         );
         commands.entity(g).insert(NodeType::Nand);
+        g
     }
 
-    pub fn or_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
+    pub fn nand_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
+        Self::nand_gate_bs_(commands, position, 2, 1, font)
+    }
+
+    pub fn or_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
         let g = Gate::spawn(
             commands,
             "OR Gate",
@@ -300,6 +321,7 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
+            ins, outs,
             trans![|inputs| {
                 let mut ret = State::Low;
                 for i in inputs {
@@ -319,9 +341,14 @@ impl Gate {
             SymbolStandard::BS(font, "≥1".to_string(), false),
         );
         commands.entity(g).insert(NodeType::Or);
+        g
     }
 
-    pub fn nor_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
+    pub fn or_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
+        Self::or_gate_bs_(commands, position, 2, 1, font)
+    }
+
+    pub fn nor_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
         let g = Gate::spawn(
             commands,
             "NOR Gate",
@@ -329,6 +356,7 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
+            ins, outs,
             trans![|inputs| {
                 let mut ret = State::High;
                 for i in inputs {
@@ -348,9 +376,14 @@ impl Gate {
             SymbolStandard::BS(font, "≥1".to_string(), true),
         );
         commands.entity(g).insert(NodeType::Nor);
+        g
     }
 
-    pub fn xor_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
+    pub fn nor_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
+        Self::nor_gate_bs_(commands, position, 2, 1, font)
+    }
+
+    pub fn xor_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity{
         let g = Gate::spawn(
             commands,
             "XOR Gate",
@@ -358,6 +391,7 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
+            ins, outs,
             trans![|inputs| {
                 let mut ret = State::Low;
                 for i in inputs {
@@ -382,9 +416,14 @@ impl Gate {
             SymbolStandard::BS(font, "=1".to_string(), false),
         );
         commands.entity(g).insert(NodeType::Xor);
+        g
     }
 
-    pub fn high_const(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
+    pub fn xor_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
+        Self::xor_gate_bs_(commands, position, 2, 1, font)
+    }
+
+    pub fn high_const(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
         let g = Gate::spawn(
             commands,
             "HIGH Constant",
@@ -392,13 +431,15 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_WIDTH),
             NodeRange { min: 0, max: 0 },
             NodeRange { min: 1, max: 1 },
+            0, 1,
             trans![|_| { State::High },],
             SymbolStandard::BS(font, "1".to_string(), false),
         );
         commands.entity(g).insert(NodeType::HighConst);
+        g
     }
 
-    pub fn low_const(commands: &mut Commands, position: Vec2, font: Handle<Font>) {
+    pub fn low_const(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
         let g = Gate::spawn(
             commands,
             "Low Constant",
@@ -406,10 +447,12 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_WIDTH),
             NodeRange { min: 0, max: 0 },
             NodeRange { min: 1, max: 1 },
+            0, 1,
             trans![|_| { State::Low },],
             SymbolStandard::BS(font, "0".to_string(), false),
         );
         commands.entity(g).insert(NodeType::LowConst);
+        g
     }
 }
 

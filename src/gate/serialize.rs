@@ -1,9 +1,20 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::gate::core::{*, Name};
+use crate::{
+    gate::{
+        core::{*, Name},
+        graphics::{
+            gate::*,
+            toggle_switch::*,
+            light_bulb::*,
+        },
+    },
+    FontAssets,
+};
 use ron::ser::{to_string_pretty, PrettyConfig};
 use chrono::prelude::*;
 use std::fs::{self, DirEntry};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Component, Deserialize, Serialize)]
 pub enum NodeType {
@@ -87,13 +98,103 @@ pub fn save_event_system(
 }
 
 pub fn load_event_system(
+    mut commands: Commands,
     mut ev_load: EventReader<LoadEvent>,
+    font: Res<FontAssets>,
 ) {
     for ev in ev_load.iter() {
         if let Ok(loaded_save) = fs::read_to_string(&ev.0) {
             let save: Result<NodusSave, _> = ron::from_str(&loaded_save);
+            let mut id_map: HashMap<Entity, Entity> = HashMap::new();
             
             if let Ok(save) = save {
+                for e in &save.entities {
+                    match e.ntype {
+                        NodeType::And => {
+                            let id = Gate::and_gate_bs_(
+                                &mut commands, 
+                                e.position, 
+                                e.inputs.unwrap(), 
+                                e.outputs.unwrap(), 
+                                font.main.clone()
+                            );
+                            id_map.insert(e.id, id);
+                        },
+                        NodeType::Nand => {
+                            let id = Gate::nand_gate_bs_(
+                                &mut commands, 
+                                e.position, 
+                                e.inputs.unwrap(), 
+                                e.outputs.unwrap(), 
+                                font.main.clone()
+                            );
+                            id_map.insert(e.id, id);
+                        },
+                        NodeType::Or => {
+                            let id = Gate::or_gate_bs_(
+                                &mut commands, 
+                                e.position, 
+                                e.inputs.unwrap(), 
+                                e.outputs.unwrap(), 
+                                font.main.clone()
+                            );
+                            id_map.insert(e.id, id);
+                        },
+                        NodeType::Nor => {
+                            let id = Gate::nor_gate_bs_(
+                                &mut commands, 
+                                e.position, 
+                                e.inputs.unwrap(), 
+                                e.outputs.unwrap(), 
+                                font.main.clone()
+                            );
+                            id_map.insert(e.id, id);
+                        },
+                        NodeType::Xor => {
+                            let id = Gate::xor_gate_bs_(
+                                &mut commands, 
+                                e.position, 
+                                e.inputs.unwrap(), 
+                                e.outputs.unwrap(), 
+                                font.main.clone()
+                            );
+                            id_map.insert(e.id, id);
+                        },
+                        NodeType::Xnor => {
+
+                        },
+                        NodeType::Not => {
+                            let id = Gate::not_gate_bs_(
+                                &mut commands, 
+                                e.position, 
+                                e.inputs.unwrap(), 
+                                e.outputs.unwrap(), 
+                                font.main.clone()
+                            );
+                            id_map.insert(e.id, id);
+                        },
+                        NodeType::HighConst => {
+                            let id = Gate::high_const(&mut commands, e.position, font.main.clone());
+                            id_map.insert(e.id, id);
+                        },
+                        NodeType::LowConst => {
+                            let id = Gate::low_const(&mut commands, e.position, font.main.clone());
+                            id_map.insert(e.id, id);
+                        },
+                        NodeType::ToggleSwitch => {
+                            let id = ToggleSwitch::new(&mut commands, e.position);
+                            id_map.insert(e.id, id);
+                        },
+                        NodeType::Clock => {
+
+                        },
+                        NodeType::LightBulb => {
+                            let id = LightBulb::spawn(&mut commands, e.position);
+                            id_map.insert(e.id, id);
+                        },
+                    }
+                }
+
                 eprintln!("file loaded and parsed");
             } else {
                 eprintln!("unable to parse file");

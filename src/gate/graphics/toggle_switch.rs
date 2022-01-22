@@ -24,7 +24,7 @@ impl ToggleSwitch {
     pub fn new(
         commands: &mut Commands,
         position: Vec2,
-    ) {
+    ) -> Entity {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
         let switch = GeometryBuilder::build_as(
@@ -87,6 +87,8 @@ impl ToggleSwitch {
         commands
             .entity(parent)
             .push_children(&vec![child, nod_child]);
+
+        parent
     }
 }
 
