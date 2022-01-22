@@ -97,6 +97,72 @@ pub fn save_event_system(
     }
 }
 
+#[derive(Component)]
+pub struct LoadMapper {
+    map: HashMap<Entity, Entity>,
+    save: NodusSave,
+}
+
+pub fn link_gates_system(
+    mut commands: Commands,
+    mut cev: EventWriter<ConnectEvent>,
+    q_children: Query<&Children>,
+    q_conn: Query<(Entity, &Connector)>,
+    q_map: Query<(Entity, &LoadMapper)>,
+) {
+    if let Ok((e, map)) = q_map.get_single() {
+        for e in &map.save.entities {
+            if let Some(targets) = &e.targets {
+                // Iterate over the slot of each output connector.
+                for i in 0..targets.len() {
+                    eprintln!("iter {}", i);
+                    // Get the associated output connector with index;    
+                    let mut out_id: Option<Entity> = None;
+                    if let Ok(out_children) = q_children.get(map.map[&e.id]) {
+                        eprintln!("in1");
+                        for &child in out_children.iter() {
+                            eprintln!("in2");
+                            if let Ok((id, conn)) = q_conn.get(child) {
+                                if conn.index == i && conn.ctype == ConnectorType::Out {
+                                    out_id = Some(id);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if out_id == None { break; }
+                    eprintln!("found");
+
+                    for (gate, tidx) in targets[i].iter() {
+                        if let Ok(in_children) = q_children.get(map.map[&gate]) {
+                            for &child in in_children.iter() {
+                                if let Ok((id, conn)) = q_conn.get(child) {
+                                    for &j in tidx.iter() {
+                                        if conn.index == j && conn.ctype == ConnectorType::In {
+                                            eprintln!("send");
+                                            cev.send(
+                                                ConnectEvent {
+                                                    output: out_id.unwrap(),
+                                                    output_index: i,
+                                                    input: id,
+                                                    input_index: j
+                                                }
+                                            );
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        commands.entity(e).despawn_recursive();
+    }
+}
+
 pub fn load_event_system(
     mut commands: Commands,
     mut ev_load: EventReader<LoadEvent>,
@@ -195,6 +261,12 @@ pub fn load_event_system(
                     }
                 }
 
+                commands.spawn().insert(
+                    LoadMapper {
+                        map: id_map,
+                        save: save,
+                    }
+                );
                 eprintln!("file loaded and parsed");
             } else {
                 eprintln!("unable to parse file");
