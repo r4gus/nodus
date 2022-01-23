@@ -22,6 +22,7 @@ impl Plugin for EguiFileBrowserPlugin {
                 action: BrowserAction::Open,
             }
         );
+        app.insert_resource(CurrentlyOpen { path: None });
         app.add_system(draw_browser_system);
         app.add_system(open_browser_event_system);
     }
@@ -87,6 +88,10 @@ struct FileBrowser {
     file_type: FileType,
     title: String,
     action: BrowserAction,
+}
+
+pub struct CurrentlyOpen {
+    pub path: Option<String>,
 }
 
 fn draw_browser_system(

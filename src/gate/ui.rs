@@ -4,6 +4,7 @@ use nodus::world2d::camera2d::MainCamera;
 use nodus::world2d::interaction2d::*;
 use bevy_egui::{egui, EguiContext, EguiSettings};
 use crate::gate::{
+    serialize::*,
     core::{*, Name},
     graphics::clk::Clk,
     graphics::gate::ChangeInput,
@@ -197,7 +198,9 @@ pub fn ui_top_panel_system(
     egui_context: ResMut<EguiContext>,
     mut exit: EventWriter<AppExit>,
     mut fbe: EventWriter<OpenBrowserEvent>,
+    mut ev_save: EventWriter<SaveEvent>,
     mut r: ResMut<GuiMenu>,
+    curr_open: Res<CurrentlyOpen>,
 ) {
     egui::TopBottomPanel::top("side").show(egui_context.ctx(), |ui| {
         ui.horizontal(|ui| {
@@ -213,7 +216,11 @@ pub fn ui_top_panel_system(
                     }
                     ui.separator();
                     if ui.button("\u{1F4BE} Save").clicked() {
-                        fbe.send(OpenBrowserEvent(BrowserAction::Save));
+                        if let Some(path) = &curr_open.path {
+                            ev_save.send(SaveEvent(path.clone()));
+                        } else {
+                            fbe.send(OpenBrowserEvent(BrowserAction::Save));
+                        }
                         ui.close_menu();
                     }
                     if ui.button("\u{1F4BE} Save As...").clicked() {

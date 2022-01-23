@@ -9,6 +9,7 @@ use crate::{
             toggle_switch::*,
             light_bulb::*,
         },
+        file_browser::*,
     },
     FontAssets,
 };
@@ -72,6 +73,7 @@ pub struct LoadEvent(pub String);
 pub fn save_event_system(
     q_node: Query<(Entity, &Name, Option<&Inputs>, Option<&Outputs>, Option<&Targets>, Option<&Clk>, &Transform, &NodeType)>,
     mut ev_save: EventReader<SaveEvent>,
+    mut curr_open: ResMut<CurrentlyOpen>,
 ) {
     for ev in ev_save.iter() {
         let mut save = Vec::new();
@@ -118,6 +120,7 @@ pub fn save_event_system(
         //eprintln!("RON: {}", to_string_pretty(&nsave, pretty).unwrap());
         eprintln!("{}", &ev.0);
         if let Ok(res) = fs::write(&ev.0, &to_string_pretty(&nsave, pretty).unwrap()) {
+            curr_open.path = Some(ev.0.clone());
             eprintln!("success");
         } else {
             eprintln!("failure");
@@ -195,6 +198,7 @@ pub fn load_event_system(
     mut commands: Commands,
     mut ev_load: EventReader<LoadEvent>,
     font: Res<FontAssets>,
+    mut curr_open: ResMut<CurrentlyOpen>,
 ) {
     for ev in ev_load.iter() {
         if let Ok(loaded_save) = fs::read_to_string(&ev.0) {
@@ -295,13 +299,21 @@ pub fn load_event_system(
                         },
                     }
                 }
-
+                
+                // The different logical components must be connected to each other. This
+                // is done in another system that always runs before this one to give the
+                // ecs enough time to insert the spawned entities above into the world.
                 commands.spawn().insert(
                     LoadMapper {
                         map: id_map,
                         save: save,
                     }
                 );
+
+                // Remember the path of the file. This allows to save the
+                // file without specifying the path all the time.
+                curr_open.path = Some(ev.0.clone());
+
                 eprintln!("file loaded and parsed");
             } else {
                 eprintln!("unable to parse file");
