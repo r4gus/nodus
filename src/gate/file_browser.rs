@@ -6,12 +6,14 @@ use std::path::Path;
 use std::io;
 use dirs;
 use crate::gate::serialize::*;
+use crate::gate::core::*;
 
 pub struct EguiFileBrowserPlugin;
 
 impl Plugin for EguiFileBrowserPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<OpenBrowserEvent>();
+        app.add_event::<NewFileEvent>();
         app.insert_resource(
             FileBrowser {
                 open: false,
@@ -25,6 +27,7 @@ impl Plugin for EguiFileBrowserPlugin {
         app.insert_resource(CurrentlyOpen { path: None });
         app.add_system(draw_browser_system);
         app.add_system(open_browser_event_system);
+        app.add_system(new_file_event_system);
     }
 }
 
@@ -227,4 +230,20 @@ fn visit_dirs(dir: &Path, ui: &mut egui::Ui, depth: usize, selected_path: &mut S
         }
     }
     Ok(())
+}
+
+pub struct NewFileEvent;
+
+pub fn new_file_event_system(
+    mut commands: Commands,
+    mut nev: EventReader<NewFileEvent>,
+    q_all: Query<Entity, Or<(With<NodeType>, With<ConnectionLine>)>>,
+    mut curr_open: ResMut<CurrentlyOpen>,
+) {
+    for ev in nev.iter() {
+        for e in q_all.iter() {
+            commands.entity(e).despawn_recursive();
+        }
+        curr_open.path = None;
+    }
 }

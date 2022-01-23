@@ -199,6 +199,7 @@ pub fn ui_top_panel_system(
     mut exit: EventWriter<AppExit>,
     mut fbe: EventWriter<OpenBrowserEvent>,
     mut ev_save: EventWriter<SaveEvent>,
+    mut ev_new: EventWriter<NewFileEvent>,
     mut r: ResMut<GuiMenu>,
     curr_open: Res<CurrentlyOpen>,
 ) {
@@ -207,7 +208,7 @@ pub fn ui_top_panel_system(
             ui.menu_button("File", |ui| {
                 ui.add_enabled_ui(true, |ui| {
                     if ui.button("\u{2B} New").clicked() {
-                        // TODO: Open file...
+                        ev_new.send(NewFileEvent);
                         ui.close_menu();
                     }
                     if ui.button("\u{1F5C1} Open").clicked() {

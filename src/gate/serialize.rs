@@ -146,13 +146,10 @@ pub fn link_gates_system(
             if let Some(targets) = &e.targets {
                 // Iterate over the slot of each output connector.
                 for i in 0..targets.len() {
-                    eprintln!("iter {}", i);
                     // Get the associated output connector with index;    
                     let mut out_id: Option<Entity> = None;
                     if let Ok(out_children) = q_children.get(map.map[&e.id]) {
-                        eprintln!("in1");
                         for &child in out_children.iter() {
-                            eprintln!("in2");
                             if let Ok((id, conn)) = q_conn.get(child) {
                                 if conn.index == i && conn.ctype == ConnectorType::Out {
                                     out_id = Some(id);
@@ -162,7 +159,6 @@ pub fn link_gates_system(
                         }
                     }
                     if out_id == None { break; }
-                    eprintln!("found");
 
                     for (gate, tidx) in targets[i].iter() {
                         if let Ok(in_children) = q_children.get(map.map[&gate]) {
@@ -170,7 +166,6 @@ pub fn link_gates_system(
                                 if let Ok((id, conn)) = q_conn.get(child) {
                                     for &j in tidx.iter() {
                                         if conn.index == j && conn.ctype == ConnectorType::In {
-                                            eprintln!("send");
                                             cev.send(
                                                 ConnectEvent {
                                                     output: out_id.unwrap(),
@@ -199,9 +194,18 @@ pub fn load_event_system(
     mut ev_load: EventReader<LoadEvent>,
     font: Res<FontAssets>,
     mut curr_open: ResMut<CurrentlyOpen>,
+    q_all: Query<Entity, Or<(With<NodeType>, With<ConnectionLine>)>>,
 ) {
     for ev in ev_load.iter() {
         if let Ok(loaded_save) = fs::read_to_string(&ev.0) {
+
+            // Remove all entities currently in the world before inserting
+            // the entities from the file.
+            for e in q_all.iter() {
+                commands.entity(e).despawn_recursive();
+            }
+
+
             let save: Result<NodusSave, _> = ron::from_str(&loaded_save);
             let mut id_map: HashMap<Entity, Entity> = HashMap::new();
             
