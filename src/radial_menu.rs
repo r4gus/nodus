@@ -170,8 +170,8 @@ fn open_menu_system(
                 commands
                     .spawn_bundle(create_menu_item_visual(
                         radians_distance,
-                        settings.inner_radius * scale,
-                        settings.outer_radius * scale,
+                        settings.inner_radius,
+                        settings.outer_radius,
                         i,
                         if i == 0 {
                             settings.select_color
@@ -191,11 +191,9 @@ fn open_menu_system(
                         parent.spawn_bundle(SpriteBundle {
                             texture: ev.items[i].0.clone(),
                             transform: Transform::from_xyz(
-                                center.cos() * factor * scale,
-                                center.sin() * factor * scale,
+                                center.cos() * factor,
+                                center.sin() * factor,
                                 1.,
-                            ).with_scale(
-                                Vec3::new(scale, scale, scale),
                             ),
                             sprite: Sprite {
                                 custom_size: Some(ev.items[i].2),
@@ -214,8 +212,16 @@ fn open_menu_system(
                 ev.position.x,
                 ev.position.y,
                 100.,
+            ).with_scale(
+                Vec3::new(scale, scale, scale),
             ))
-            .insert(Transform::from_xyz(ev.position.x, ev.position.y, 100.))
+            .insert(Transform::from_xyz(
+                ev.position.x, 
+                ev.position.y, 
+                100.
+            ).with_scale(
+                Vec3::new(scale, scale, scale),
+            ))
             .insert(Menu {
                 position: ev.position,
                 mouse_button: ev.mouse_button,
@@ -226,7 +232,7 @@ fn open_menu_system(
             .with_children(|parent| {
                 let inner_circle = GeometryBuilder::build_as(
                     &shapes::Circle {
-                        radius: settings.inner_radius * 0.9 * scale,
+                        radius: settings.inner_radius * 0.9,
                         center: Vec2::new(0., 0.),
                     },
                     DrawMode::Fill(FillMode::color(settings.second_color)),
@@ -242,7 +248,7 @@ fn open_menu_system(
                                 &ev.items[0].1,
                                 TextStyle {
                                     font: asset_server.load("fonts/hack.bold.ttf"),
-                                    font_size: 20.0 * scale,
+                                    font_size: 20.0,
                                     color: Color::WHITE,
                                 },
                                 TextAlignment {
@@ -302,12 +308,6 @@ fn update_system(
     q_camera: Query<&mut Transform, With<MainCamera>>,
 ) {
     if let Ok((children, mut menu)) = q_menu.get_single_mut() {
-        let scale = if let Ok(transform) = q_camera.get_single() {
-            transform.scale.x
-        } else {
-            1.0
-        };
-
         for ev in ev_open.iter() {
             let distance = ev.0 - menu.position;
             let mut rad = distance.y.atan2(distance.x);
@@ -328,8 +328,8 @@ fn update_system(
                                 .entity(entity)
                                 .insert_bundle(create_menu_item_visual(
                                     radians_distance,
-                                    settings.inner_radius * scale,
-                                    settings.outer_radius * scale,
+                                    settings.inner_radius,
+                                    settings.outer_radius,
                                     item.id,
                                     settings.select_color,
                                 ));
@@ -342,8 +342,8 @@ fn update_system(
                                 commands.entity(menu.selected).insert_bundle(
                                     create_menu_item_visual(
                                         radians_distance,
-                                        settings.inner_radius * scale,
-                                        settings.outer_radius * scale,
+                                        settings.inner_radius,
+                                        settings.outer_radius,
                                         item.id,
                                         settings.main_color,
                                     ),
@@ -362,7 +362,7 @@ fn update_system(
                                             &item.text,
                                             TextStyle {
                                                 font: asset_server.load("fonts/hack.bold.ttf"),
-                                                font_size: 20.0 * scale,
+                                                font_size: 20.0,
                                                 color: Color::WHITE,
                                             },
                                             TextAlignment {

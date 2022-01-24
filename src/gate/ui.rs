@@ -11,6 +11,7 @@ use crate::gate::{
     graphics::gate::ChangeInput,
     file_browser::*,
 };
+use crate::radial_menu::Menu;
 
 const MIT: &str = "\
 License
@@ -41,8 +42,11 @@ pub fn update_lock(
     mut lock: ResMut<Lock>,
     about: Res<GuiMenu>,
     browser: Res<FileBrowser>,
+    q_menu: Query<&Menu>,
 ) {
-    lock.0 = about.open || browser.open;
+    let menu = if let Ok(_) = q_menu.get_single() { true } else { false };
+
+    lock.0 = about.open || browser.open || menu;
 }
 
 pub fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
