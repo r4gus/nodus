@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::app::AppExit;
+use nodus::world2d::*;
 use nodus::world2d::camera2d::MainCamera;
 use nodus::world2d::interaction2d::*;
 use bevy_egui::{egui, EguiContext, EguiSettings};
@@ -35,6 +36,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.";
 
 const NODUS_LOGO_ID: u64 = 0;
+
+pub fn update_lock(
+    mut lock: ResMut<Lock>,
+    about: Res<GuiMenu>,
+    browser: Res<FileBrowser>,
+) {
+    lock.0 = about.open || browser.open;
+}
 
 pub fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
     if let Some(window) = windows.get_primary() {
@@ -202,55 +211,82 @@ pub fn ui_top_panel_system(
     mut ev_new: EventWriter<NewFileEvent>,
     mut r: ResMut<GuiMenu>,
     curr_open: Res<CurrentlyOpen>,
+    mut mode: ResMut<InteractionMode>,
 ) {
     egui::TopBottomPanel::top("side").show(egui_context.ctx(), |ui| {
-        ui.horizontal(|ui| {
-            ui.menu_button("File", |ui| {
-                ui.add_enabled_ui(true, |ui| {
-                    if ui.button("\u{2B} New").clicked() {
-                        ev_new.send(NewFileEvent);
-                        ui.close_menu();
-                    }
-                    if ui.button("\u{1F5C1} Open").clicked() {
-                        fbe.send(OpenBrowserEvent(BrowserAction::Open));
-                        ui.close_menu();
-                    }
-                    ui.separator();
-                    if ui.button("\u{1F4BE} Save").clicked() {
-                        if let Some(path) = &curr_open.path {
-                            ev_save.send(SaveEvent(path.clone()));
-                        } else {
-                            fbe.send(OpenBrowserEvent(BrowserAction::Save));
+        ui.columns(2, |columns| {
+            columns[0].horizontal(|ui| {
+                ui.menu_button("File", |ui| {
+                    ui.add_enabled_ui(true, |ui| {
+                        if ui.button("\u{2B} New").clicked() {
+                            if let Some(path) = &curr_open.path {
+                                ev_save.send(SaveEvent(path.clone()));
+                            }
+                            ev_new.send(NewFileEvent);
+                            ui.close_menu();
                         }
+                        if ui.button("\u{1F5C1} Open").clicked() {
+                            fbe.send(OpenBrowserEvent(BrowserAction::Open));
+                            ui.close_menu();
+                        }
+                        ui.separator();
+                        if ui.button("\u{1F4BE} Save").clicked() {
+                            if let Some(path) = &curr_open.path {
+                                ev_save.send(SaveEvent(path.clone()));
+                            } else {
+                                fbe.send(OpenBrowserEvent(BrowserAction::Save));
+                            }
+                            ui.close_menu();
+                        }
+                        if ui.button("\u{1F4BE} Save As...").clicked() {
+                            fbe.send(OpenBrowserEvent(BrowserAction::Save));
+                            ui.close_menu();
+                        }
+                    });
+                    ui.separator();
+                    if ui.button("Exit").clicked() {
                         ui.close_menu();
+                        exit.send(AppExit);
                     }
-                    if ui.button("\u{1F4BE} Save As...").clicked() {
-                        fbe.send(OpenBrowserEvent(BrowserAction::Save));
+                });
+
+                ui.menu_button("View", |ui| {
+                    if ui.button("Back to Origin").clicked() {
                         ui.close_menu();
                     }
                 });
-                ui.separator();
-                if ui.button("Exit").clicked() {
-                    ui.close_menu();
-                    exit.send(AppExit);
-                }
+
+                ui.menu_button("Help", |ui| {
+                    ui.separator();
+                    if ui.button("\u{FF1F} About Nodus").clicked() {
+                        r.option = GuiMenuOptions::About;
+                        r.open = true;
+                        ui.close_menu();
+                    }
+                });
+
             });
 
-            ui.menu_button("View", |ui| {
-                if ui.button("Back to Origin").clicked() {
-                    ui.close_menu();
+            columns[1].with_layout(egui::Layout::right_to_left(), |ui| {
+                let blue = egui::Color32::BLUE;
+                let grey = egui::Color32::DARK_GRAY;
+                if ui.add(egui::Button::new("\u{1F542}")
+                    .fill(if *mode == InteractionMode::Pan { blue } else { grey }))
+                    .on_hover_text("Pan Camera")
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .clicked() 
+                { // pan
+                    *mode = InteractionMode::Pan;
+                }
+                if ui.add(egui::Button::new("\u{1F446}")
+                    .fill(if *mode == InteractionMode::Select { blue } else { grey }))
+                    .on_hover_text("Select")
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .clicked() 
+                { // select
+                    *mode = InteractionMode::Select;
                 }
             });
-
-            ui.menu_button("Help", |ui| {
-                ui.separator();
-                if ui.button("\u{FF1F} About Nodus").clicked() {
-                    r.option = GuiMenuOptions::About;
-                    r.open = true;
-                    ui.close_menu();
-                }
-            });
-
         });
     });
 }

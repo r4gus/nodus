@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable, Drag, Selected};
+use nodus::world2d::InteractionMode;
 use super::{
     core::*,
     graphics::{
@@ -9,6 +10,17 @@ use super::{
         clk::*,
     },
 };
+
+pub fn shortcut_system(
+    mut mode: ResMut<InteractionMode>,
+    input_keyboard: Res<Input<KeyCode>>,
+) {
+    if input_keyboard.pressed(KeyCode::P) {
+        *mode = InteractionMode::Pan;
+    } else if input_keyboard.pressed(KeyCode::S) {
+        *mode = InteractionMode::Select;
+    }
+}
 
 /// Removes the drag state from draggable components.
 pub fn drag_gate_system(

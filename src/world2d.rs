@@ -1,7 +1,51 @@
+use bevy::prelude::*;
+use crate::world2d::camera2d::Camera2DPlugin;
+use crate::world2d::interaction2d::Interaction2DPlugin;
+
+/// Ugly solution for ignoring input.
+pub struct Lock(pub bool);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InteractionMode {
+    Select,
+    Pan,
+}
+
+pub struct NodusWorld2DPlugin;
+
+impl Plugin for NodusWorld2DPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(InteractionMode::Select)
+            .insert_resource(Lock(false))
+            .add_plugin(Camera2DPlugin)
+            .add_plugin(Interaction2DPlugin);
+    }
+}
+
+/*
+fn update_cursor_system(
+    mut mode: ResMut<InteractionMode>,
+    mut wnds: ResMut<Windows>,
+) {
+    if mode.is_changed() {
+        eprintln!("change");
+        let window = wnds.get_primary_mut().unwrap();
+
+        match *mode {
+            InteractionMode::Select => { window.set_cursor_icon(CursorIcon::Hand); },
+            InteractionMode::Pan => { window.set_cursor_icon(CursorIcon::Hand); },
+        }
+        window.set_cursor_icon(CursorIcon::Hand);
+        eprintln!("{:?}", window.cursor_icon());
+    }
+}
+*/
+
 pub mod camera2d {
     use bevy::input::mouse::{MouseMotion, MouseWheel};
     use bevy::prelude::*;
     use core::ops::{Deref, DerefMut};
+    use super::{InteractionMode, Lock};
 
     pub struct Camera2DPlugin;
 
@@ -83,15 +127,15 @@ pub mod camera2d {
         input_keyboard: Res<Input<KeyCode>>,
         mut q_camera: Query<&mut Transform, With<MainCamera>>,
         time: Res<Time>,
+        mode: Res<InteractionMode>,
+        lock: Res<Lock>,
     ) {
-        // change input mapping for panning here.
-        let pan_button = MouseButton::Middle;
-        let pan_button2 = KeyCode::LControl;
+        if lock.0 { return; }
 
         let mut pan = Vec2::ZERO;
         let mut scroll = 0.0;
 
-        if input_mouse.pressed(pan_button) || input_keyboard.pressed(pan_button2) {
+        if *mode == InteractionMode::Pan && input_mouse.pressed(MouseButton::Left) {
             for ev in ev_motion.iter() {
                 pan += ev.delta;
             }
@@ -124,6 +168,7 @@ pub mod camera2d {
 pub mod interaction2d {
     use super::camera2d::MouseWorldPos;
     use bevy::prelude::*;
+    use super::{InteractionMode, Lock};
 
     pub struct Interaction2DPlugin;
 
@@ -259,6 +304,7 @@ pub mod interaction2d {
         mut commands: Commands,
         mw: Res<MouseWorldPos>,
         mb: ResMut<Input<MouseButton>>,
+        mode: Res<InteractionMode>,
         // query all entities that are selectable and that
         // the mouse currently hovers over.
         q_select: Query<
@@ -267,8 +313,9 @@ pub mod interaction2d {
             (With<Selectable>, With<Hover>),
         >,
         q_selected: Query<Entity, With<Selected>>,
+        lock: Res<Lock>,
     ) {
-        if mb.just_pressed(MouseButton::Left) {
+        if !lock.0 && *mode == InteractionMode::Select && mb.just_pressed(MouseButton::Left) {
             let mut e: Option<Entity> = None;
             let mut greatest: f32 = -1.;
             let mut drag: bool = false;

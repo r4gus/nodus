@@ -9,7 +9,7 @@ mod component;
 mod radial_menu;
 
 use component::*;
-use nodus::world2d::{camera2d::Camera2DPlugin, interaction2d::Interaction2DPlugin};
+use nodus::world2d::{NodusWorld2DPlugin};
 use crate::gate::file_browser::*;
 
 use radial_menu::RadialMenu;
@@ -45,8 +45,7 @@ fn main() {
         .add_plugin(ShapePlugin) // 2d drawing
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(Camera2DPlugin)
-        .add_plugin(Interaction2DPlugin)
+        .add_plugin(NodusWorld2DPlugin)
         .add_plugin(LogicComponentSystem)
         .add_plugin(RadialMenu)
         .run();

@@ -27,7 +27,7 @@ impl Plugin for EguiFileBrowserPlugin {
         app.insert_resource(CurrentlyOpen { path: None });
         app.add_system(draw_browser_system);
         app.add_system(open_browser_event_system);
-        app.add_system(new_file_event_system);
+        app.add_system(new_file_event_system.label("new_file"));
     }
 }
 
@@ -84,8 +84,8 @@ impl FileType {
     const RON_ENDING: &'static str = "ron";
 }
 
-struct FileBrowser {
-    open: bool,
+pub struct FileBrowser {
+    pub open: bool,
     path: OsString,
     fname: String,
     file_type: FileType,

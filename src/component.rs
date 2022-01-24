@@ -103,7 +103,7 @@ impl Plugin for LogicComponentSystem {
                     .with_system(open_radial_menu_system.system())
                     .with_system(handle_radial_menu_event_system.system())
                     .with_system(update_radial_menu_system.system())
-                    .with_system(save_event_system)
+                    .with_system(save_event_system.before("new_file"))
                     // The link_gates_system requires entities spawned by the
                     // load_event_system. To make sure the entities can be
                     // queried the link_gates_system must always run before the
@@ -111,6 +111,8 @@ impl Plugin for LogicComponentSystem {
                     // have been inserted into the world.
                     .with_system(link_gates_system.label("link_gates_system"))
                     .with_system(load_event_system.after("link_gates_system"))
+                    .with_system(shortcut_system)
+                    .with_system(update_lock)
             )
             .add_system_set(SystemSet::on_enter(GameState::InGame)
                     .with_system(setup.system())
