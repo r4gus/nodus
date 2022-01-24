@@ -3,6 +3,7 @@ use bevy_prototype_lyon::entity::ShapeBundle;
 use bevy_prototype_lyon::prelude::*;
 use bevy_prototype_lyon::geometry::Geometry;
 use lyon_tessellation::path::path::Builder;
+use nodus::world2d::camera2d::MainCamera;
 
 pub struct RadialMenu;
 
@@ -144,10 +145,17 @@ fn open_menu_system(
     settings: Res<MenuSettings>,
     q_menu: Query<&Menu>,
     asset_server: Res<AssetServer>,
+    q_camera: Query<&mut Transform, With<MainCamera>>,
 ) {
     if let Ok(_) = q_menu.get_single() {
         return;
     }
+
+    let scale = if let Ok(transform) = q_camera.get_single() {
+        transform.scale.x
+    } else {
+        1.0
+    };
 
     for ev in ev_open.iter() {
         let radians_distance = (std::f32::consts::PI * 2.) / ev.items.len() as f32;
@@ -156,15 +164,14 @@ fn open_menu_system(
         let mut evec = Vec::new();
         for i in 0..ev.items.len() {
             let center = radians_distance * i as f32 + radians_distance * 0.5;
-            let factor =
-                settings.inner_radius + (settings.outer_radius - settings.inner_radius) * 0.5;
+            let factor = settings.inner_radius + (settings.outer_radius - settings.inner_radius) * 0.5;
 
             evec.push(
                 commands
                     .spawn_bundle(create_menu_item_visual(
                         radians_distance,
-                        settings.inner_radius,
-                        settings.outer_radius,
+                        settings.inner_radius * scale,
+                        settings.outer_radius * scale,
                         i,
                         if i == 0 {
                             settings.select_color
@@ -184,9 +191,11 @@ fn open_menu_system(
                         parent.spawn_bundle(SpriteBundle {
                             texture: ev.items[i].0.clone(),
                             transform: Transform::from_xyz(
-                                center.cos() * factor,
-                                center.sin() * factor,
+                                center.cos() * factor * scale,
+                                center.sin() * factor * scale,
                                 1.,
+                            ).with_scale(
+                                Vec3::new(scale, scale, scale),
                             ),
                             sprite: Sprite {
                                 custom_size: Some(ev.items[i].2),
@@ -217,7 +226,7 @@ fn open_menu_system(
             .with_children(|parent| {
                 let inner_circle = GeometryBuilder::build_as(
                     &shapes::Circle {
-                        radius: settings.inner_radius * 0.9,
+                        radius: settings.inner_radius * 0.9 * scale,
                         center: Vec2::new(0., 0.),
                     },
                     DrawMode::Fill(FillMode::color(settings.second_color)),
@@ -233,7 +242,7 @@ fn open_menu_system(
                                 &ev.items[0].1,
                                 TextStyle {
                                     font: asset_server.load("fonts/hack.bold.ttf"),
-                                    font_size: 20.0,
+                                    font_size: 20.0 * scale,
                                     color: Color::WHITE,
                                 },
                                 TextAlignment {
@@ -269,7 +278,6 @@ fn execute_and_close_system(
     if let Ok((entity, menu)) = q_menu.get_single() {
         if mb.just_pressed(menu.mouse_button) {
             if let Ok(item) = q_item.get(menu.selected) {
-                eprintln!("sending");
                 ev_propagate.send(PropagateSelectionEvent {
                     id: item.id,
                     position: menu.position,
@@ -291,20 +299,25 @@ fn update_system(
     q_item: Query<(Entity, &MenuItem)>,
     q_item_info: Query<(Entity, &Children), With<ItemInfo>>,
     asset_server: Res<AssetServer>,
+    q_camera: Query<&mut Transform, With<MainCamera>>,
 ) {
     if let Ok((children, mut menu)) = q_menu.get_single_mut() {
+        let scale = if let Ok(transform) = q_camera.get_single() {
+            transform.scale.x
+        } else {
+            1.0
+        };
+
         for ev in ev_open.iter() {
             let distance = ev.0 - menu.position;
             let mut rad = distance.y.atan2(distance.x);
             if rad < 0.0 {
                 rad = rad + std::f32::consts::PI * 2.;
             }
-            //eprintln!("{}", rad);
 
             for &child in children.iter() {
                 if let Ok((entity, item)) = q_item.get(child) {
                     if rad >= item.range.x && rad < item.range.y {
-                        //eprintln!("{}", item.id);
 
                         if entity != menu.selected {
                             let radians_distance = (std::f32::consts::PI * 2.) / menu.items as f32;
@@ -315,8 +328,8 @@ fn update_system(
                                 .entity(entity)
                                 .insert_bundle(create_menu_item_visual(
                                     radians_distance,
-                                    settings.inner_radius,
-                                    settings.outer_radius,
+                                    settings.inner_radius * scale,
+                                    settings.outer_radius * scale,
                                     item.id,
                                     settings.select_color,
                                 ));
@@ -329,8 +342,8 @@ fn update_system(
                                 commands.entity(menu.selected).insert_bundle(
                                     create_menu_item_visual(
                                         radians_distance,
-                                        settings.inner_radius,
-                                        settings.outer_radius,
+                                        settings.inner_radius * scale,
+                                        settings.outer_radius * scale,
                                         item.id,
                                         settings.main_color,
                                     ),
@@ -349,7 +362,7 @@ fn update_system(
                                             &item.text,
                                             TextStyle {
                                                 font: asset_server.load("fonts/hack.bold.ttf"),
-                                                font_size: 20.0,
+                                                font_size: 20.0 * scale,
                                                 color: Color::WHITE,
                                             },
                                             TextAlignment {

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable, Drag, Selected};
-use nodus::world2d::InteractionMode;
+use nodus::world2d::{InteractionMode, Lock};
 use super::{
     core::*,
     graphics::{
@@ -14,7 +14,10 @@ use super::{
 pub fn shortcut_system(
     mut mode: ResMut<InteractionMode>,
     input_keyboard: Res<Input<KeyCode>>,
+    lock: Res<Lock>,
 ) {
+    if lock.0 { return; }
+
     if input_keyboard.pressed(KeyCode::P) {
         *mode = InteractionMode::Pan;
     } else if input_keyboard.pressed(KeyCode::S) {
