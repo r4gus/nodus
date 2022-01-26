@@ -79,3 +79,18 @@ pub fn delete_gate_system(
         }
     }
 }
+
+/*
+pub fn select_multiple_system(
+    mb: Res<Input<MouseButton>>,
+    q_gate: Query<
+        (Entity, &Children),
+        (
+            With<Selected>,
+            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>,
+        ),
+    >,
+) {
+
+}
+*/
