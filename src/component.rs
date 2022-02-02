@@ -19,7 +19,7 @@ use crate::gate::{
     systems::*,
     serialize::*,
     graphics::{
-        highlight_system,remove_highlight_system,
+        highlight_system,remove_highlight_system, change_highlight_system,
         light_bulb::*,
         toggle_switch::*,
         gate::*,
@@ -93,6 +93,7 @@ impl Plugin for LogicComponentSystem {
                     //.with_system(draw_data_flow.system().after("draw_line"))
                     .with_system(highlight_system.before("disconnect"))
                     .with_system(remove_highlight_system.before("disconnect"))
+                    .with_system(change_highlight_system.before("disconnect"))
                     .with_system(light_bulb_system.system().before("disconnect"))
                     .with_system(toggle_switch_system.system().before("disconnect"))
                     .with_system(line_selection_system.system().after("draw_line"))
