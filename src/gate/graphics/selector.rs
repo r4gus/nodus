@@ -11,6 +11,7 @@ use bevy_prototype_lyon::{
     prelude::*,
     render::Shape,
 };
+use nodus::world2d::{Lock, InteractionMode};
 use nodus::world2d::camera2d::MouseWorldPos;
 use nodus::world2d::interaction2d::{Hover, Selected};
 
@@ -23,10 +24,14 @@ pub fn selector_system(
     mut commands: Commands,
     mb: Res<Input<MouseButton>>,
     mw: Res<MouseWorldPos>,
+    lock: Res<Lock>,
+    mode: Res<InteractionMode>,
     q_gate: Query<(Entity, &Transform), (Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>)>,
     q_hover: Query<Entity, (With<Hover>)>,
     mut q_select: Query<(Entity, &mut Path, &SelectBox), With<SelectBox>>,
 ) {
+    if lock.0 || *mode != InteractionMode::Select { return; }
+
     if q_hover.is_empty() && mb.just_pressed(MouseButton::Left) {
         let frame = GeometryBuilder::build_as(
             &shapes::Rectangle {
