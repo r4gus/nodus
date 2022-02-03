@@ -19,7 +19,8 @@ use crate::gate::{
     systems::*,
     serialize::*,
     graphics::{
-        highlight_system,remove_highlight_system, change_highlight_system,
+        selector::*,
+        highlight::*,
         light_bulb::*,
         toggle_switch::*,
         gate::*,
@@ -107,6 +108,7 @@ impl Plugin for LogicComponentSystem {
                     .with_system(open_radial_menu_system.system())
                     .with_system(handle_radial_menu_event_system.system())
                     .with_system(update_radial_menu_system.system())
+                    .with_system(selector_system)
                     .with_system(save_event_system.before("new_file"))
                     // The link_gates_system requires entities spawned by the
                     // load_event_system. To make sure the entities can be

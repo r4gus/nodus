@@ -313,6 +313,7 @@ pub mod interaction2d {
             (With<Selectable>, With<Hover>),
         >,
         q_selected: Query<Entity, With<Selected>>,
+        q_drag: Query<&Transform, With<Draggable>>,
         lock: Res<Lock>,
     ) {
         if !lock.0 && *mode == InteractionMode::Select && mb.just_pressed(MouseButton::Left) {
@@ -336,19 +337,52 @@ pub mod interaction2d {
                 entities.push(entity);
             }
 
-            for entity in entities {
-                commands.entity(entity).remove::<Selected>();
-            }
+            if entities.len() > 1 {
+                if let Some(entity) = e {
+                   if entities.contains(&entity) {
+                        for &e in entities.iter() {
+                            if let Ok(t) = q_drag.get(e) {
+                                let p = Vec2::new(t.translation.x, t.translation.y);
 
-            if let Some(entity) = e {
-                if drag {
-                    commands.entity(entity).insert(Drag {
-                        click_offset: pos - **mw,
-                    });
+                                commands.entity(e).insert(Drag {
+                                    click_offset: p - **mw,
+                                });
+                            }
+                        }
+                   } else {
+                        for e in entities {
+                            commands.entity(e).remove::<Selected>();
+                        }
+
+                        if drag {
+                            commands.entity(entity).insert(Drag {
+                                click_offset: pos - **mw,
+                            });
+                        }
+
+                        commands.entity(entity).insert(Selected);
+                   }
+                } else {
+                    // Clicked on empty space -> deselect all
+                    for entity in entities {
+                        commands.entity(entity).remove::<Selected>();
+                    }
+                }
+            } else {
+                for entity in entities {
+                    commands.entity(entity).remove::<Selected>();
                 }
 
-                commands.entity(entity).insert(Selected);
-            } 
+                if let Some(entity) = e {
+                    if drag {
+                        commands.entity(entity).insert(Drag {
+                            click_offset: pos - **mw,
+                        });
+                    }
+
+                    commands.entity(entity).insert(Selected);
+                } 
+            }
         }
     }
 
