@@ -1,16 +1,14 @@
-use crate::gate::core::{*, State};
+use crate::gate::core::{State, *};
 use bevy::prelude::*;
-use bevy_prototype_lyon::{
-    prelude::*,
-    entity::ShapeBundle,
-};
+use bevy_prototype_lyon::{entity::ShapeBundle, prelude::*};
 use lyon_tessellation::path::path::Builder;
-use nodus::world2d::interaction2d::Selected;
 use nodus::world2d::camera2d::MouseWorldPos;
+use nodus::world2d::interaction2d::Selected;
 
 /// Sameple the cubic bezier curve, defined by s` (start),
 /// `c1` (control point 1), `c2` (control point 2) and `e` (end),
 /// at `t` (t e [0, 1]);
+#[allow(dead_code)]
 fn qubic_bezier_point(t: f32, s: Vec2, c1: Vec2, c2: Vec2, e: Vec2) -> Vec2 {
     let u = 1. - t;
     let tt = t * t;
@@ -32,7 +30,7 @@ fn qubic_bezier_point(t: f32, s: Vec2, c1: Vec2, c2: Vec2, e: Vec2) -> Vec2 {
 /// on a qubic bezier curve.
 fn t_for_point(xy: Vec2, s: Vec2, c1: Vec2, c2: Vec2, e: Vec2) -> Option<f32> {
     use lyon_geom::*;
-    
+
     const EPSILON: f32 = 16.;
     let c = CubicBezierSegment {
         from: Point::new(s.x, s.y),
@@ -42,7 +40,7 @@ fn t_for_point(xy: Vec2, s: Vec2, c1: Vec2, c2: Vec2, e: Vec2) -> Option<f32> {
     };
 
     let possible_t_values_x = c.solve_t_for_x(xy.x);
-    let possible_t_values_y = c.solve_t_for_y(xy.y);
+    let _possible_t_values_y = c.solve_t_for_y(xy.y);
 
     for t in possible_t_values_x {
         if t >= -0.001 && t <= 1.001 {
@@ -60,18 +58,14 @@ fn t_for_point(xy: Vec2, s: Vec2, c1: Vec2, c2: Vec2, e: Vec2) -> Option<f32> {
 }
 
 struct ConnectionLineShape<'a> {
-    pub via: &'a [Vec2], 
+    pub via: &'a [Vec2],
 }
 
 impl<'a> Geometry for ConnectionLineShape<'a> {
     fn add_geometry(&self, b: &mut Builder) {
         let mut path = PathBuilder::new();
         path.move_to(self.via[0]);
-        path.cubic_bezier_to(
-            self.via[1],
-            self.via[2],
-            self.via[3],
-        );
+        path.cubic_bezier_to(self.via[1], self.via[2], self.via[3]);
 
         b.concatenate(&[path.build().0.as_slice()]);
     }
@@ -94,7 +88,15 @@ pub struct LineHighLight;
 
 pub fn draw_line_system(
     mut commands: Commands,
-    mut q_line: Query<(Entity, &mut ConnectionLine, Option<&Children>, Option<&Selected>), ()>,
+    mut q_line: Query<
+        (
+            Entity,
+            &mut ConnectionLine,
+            Option<&Children>,
+            Option<&Selected>,
+        ),
+        (),
+    >,
     q_transform: Query<(&Parent, &Connector, &GlobalTransform), ()>,
     q_outputs: Query<&Outputs, ()>,
     q_highlight: Query<Entity, With<LineHighLight>>,
@@ -103,7 +105,7 @@ pub fn draw_line_system(
 ) {
     lr.count += time.delta_seconds();
 
-    for (entity, mut conn_line, children, selected) in q_line.iter_mut() {
+    for (entity, mut conn_line, _children, selected) in q_line.iter_mut() {
         if let Ok((t_parent, t_conn, t_from)) = q_transform.get(conn_line.output.entity) {
             // Set connection line color based on the value of the output.
             let color = if let Ok(outputs) = q_outputs.get(t_parent.0) {
@@ -123,7 +125,7 @@ pub fn draw_line_system(
                     t_to.translation.x,
                     t_to.translation.y,
                 );
-                let l = ((via[3].x - via[0].x).powi(2) + (via[3].y - via[0].y).powi(2)).sqrt();
+                let _l = ((via[3].x - via[0].x).powi(2) + (via[3].y - via[0].y).powi(2)).sqrt();
 
                 // Remove current line path.
                 commands.entity(entity).remove_bundle::<ShapeBundle>();
@@ -131,11 +133,7 @@ pub fn draw_line_system(
                 // Create new path.
                 let mut path = PathBuilder::new();
                 path.move_to(via[0]);
-                path.cubic_bezier_to(
-                    via[1],
-                    via[2],
-                    via[3],
-                );
+                path.cubic_bezier_to(via[1], via[2], via[3]);
 
                 let new_ent = commands
                     .entity(entity)
@@ -143,32 +141,32 @@ pub fn draw_line_system(
                         &ConnectionLineShape { via: &via },
                         DrawMode::Stroke(StrokeMode::new(color, 8.0)),
                         Transform::from_xyz(0., 0., 1.),
-                    )).id();
+                    ))
+                    .id();
 
                 for e in q_highlight.iter() {
                     commands.entity(e).despawn_recursive();
                 }
-                
+
                 // Highlight if selected.
                 if let Some(_) = selected {
-                    let child = commands.
-                        spawn_bundle(
-                            GeometryBuilder::build_as(
-                                &ConnectionLineShape { via: &via },
-                                DrawMode::Stroke(StrokeMode::new(
-                                    Color::rgba(0.62, 0.79, 0.94, 0.5),
-                                    18.0,
-                                )),
-                                Transform::from_xyz(0., 0., 0.),
-                            )
-                        )
-                        .insert(LineHighLight).id();
-                    
+                    let child = commands
+                        .spawn_bundle(GeometryBuilder::build_as(
+                            &ConnectionLineShape { via: &via },
+                            DrawMode::Stroke(StrokeMode::new(
+                                Color::rgba(0.62, 0.79, 0.94, 0.5),
+                                18.0,
+                            )),
+                            Transform::from_xyz(0., 0., 0.),
+                        ))
+                        .insert(LineHighLight)
+                        .id();
+
                     commands.entity(new_ent).add_child(child);
-                } 
+                }
 
                 conn_line.via = via;
-                
+
                 /*
                  * TODO: nice visual effect but probably distracting as well.
                  *
@@ -191,7 +189,7 @@ pub fn draw_line_system(
                             stepsize: 1. / (l / 250.),
                             steps: 0.,
                         }).id();
-                    
+
                     commands.entity(entity).push_children(&[id]);
                 }
                 */
@@ -209,16 +207,16 @@ pub fn line_selection_system(
     mw: Res<MouseWorldPos>,
     mb: Res<Input<MouseButton>>,
     q_line: Query<(Entity, &ConnectionLine)>,
-    q_selected: Query<Entity, With<Selected>>,
+    _q_selected: Query<Entity, With<Selected>>,
 ) {
     if mb.just_pressed(MouseButton::Left) {
         for (entity, line) in q_line.iter() {
             if let Some(_) = t_for_point(
-                Vec2::new(mw.x, mw.y), 
-                line.via[0].clone(), 
+                Vec2::new(mw.x, mw.y),
+                line.via[0].clone(),
                 line.via[1].clone(),
                 line.via[2].clone(),
-                line.via[3].clone()
+                line.via[3].clone(),
             ) {
                 commands.entity(entity).insert(Selected);
                 break;
@@ -242,32 +240,33 @@ pub fn delete_line_system(
     }
 }
 
-
 // TODO: Deactivated for now
 pub fn draw_data_flow(
     mut commands: Commands,
     time: Res<Time>,
     mut q_point: Query<(Entity, &Parent, &mut Transform, &mut DataPoint)>,
-    q_line: Query<&ConnectionLine>, 
+    q_line: Query<&ConnectionLine>,
 ) {
     for (entity, parent, mut transform, mut data) in q_point.iter_mut() {
         if let Ok(line) = q_line.get(parent.0) {
-            let l = ((line.via[3].x - line.via[0].x).powi(2) + (line.via[3].y - line.via[0].y).powi(2)).sqrt();
+            let l = ((line.via[3].x - line.via[0].x).powi(2)
+                + (line.via[3].y - line.via[0].y).powi(2))
+            .sqrt();
             data.steps += (1. / (l / 300.)) * time.delta_seconds();
 
             if data.steps >= 1.0 {
                 commands.entity(entity).despawn_recursive();
             } else {
                 let p = qubic_bezier_point(
-                    data.steps, 
-                    line.via[0].clone(), 
+                    data.steps,
+                    line.via[0].clone(),
                     line.via[1].clone(),
                     line.via[2].clone(),
-                    line.via[3].clone()
+                    line.via[3].clone(),
                 );
 
-                transform.translation.x = p.x; 
-                transform.translation.y = p.y; 
+                transform.translation.x = p.x;
+                transform.translation.y = p.y;
             }
         }
     }

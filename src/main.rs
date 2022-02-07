@@ -5,13 +5,13 @@ use bevy_egui::EguiPlugin;
 use bevy_prototype_lyon::prelude::*;
 
 mod gate;
-mod rmenu; // specific usage of the radial_menu
 mod radial_menu;
+mod rmenu; // specific usage of the radial_menu
 
-use gate::LogicComponentSystem;
-use rmenu::GateAssets;
-use nodus::world2d::{NodusWorld2DPlugin};
 use crate::gate::file_browser::*;
+use gate::LogicComponentSystem;
+use nodus::world2d::NodusWorld2DPlugin;
+use rmenu::GateAssets;
 
 use radial_menu::RadialMenu;
 

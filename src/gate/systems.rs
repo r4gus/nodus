@@ -1,24 +1,21 @@
-use bevy::prelude::*;
-use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable, Drag, Selected};
-use nodus::world2d::{InteractionMode, Lock};
 use super::{
-    undo::*,
-    core::{*, Name},
+    core::{Name, *},
+    graphics::{clk::*, light_bulb::*, toggle_switch::*},
     serialize::*,
-    graphics::{
-        light_bulb::*,
-        toggle_switch::*,
-        gate::*,
-        clk::*,
-    },
+    undo::*,
 };
+use bevy::prelude::*;
+use nodus::world2d::interaction2d::{Drag, Selected};
+use nodus::world2d::{InteractionMode, Lock};
 
 pub fn shortcut_system(
     mut mode: ResMut<InteractionMode>,
     input_keyboard: Res<Input<KeyCode>>,
     lock: Res<Lock>,
 ) {
-    if lock.0 { return; }
+    if lock.0 {
+        return;
+    }
 
     if input_keyboard.pressed(KeyCode::P) {
         *mode = InteractionMode::Pan;
@@ -61,14 +58,14 @@ pub fn delete_gate_system(
     q_connectors: Query<&Connections>,
     mut stack: ResMut<UndoStack>,
     q_node: Query<(
-        Entity, 
-        &Name, 
-        Option<&Inputs>, 
-        Option<&Outputs>, 
-        Option<&Targets>, 
-        Option<&Clk>, 
-        &Transform, 
-        &NodeType
+        Entity,
+        &Name,
+        Option<&Inputs>,
+        Option<&Outputs>,
+        Option<&Targets>,
+        Option<&Clk>,
+        &Transform,
+        &NodeType,
     )>,
 ) {
     if input_keyboard.pressed(KeyCode::Delete) {
@@ -78,20 +75,30 @@ pub fn delete_gate_system(
             // ----------------------------------- undo
             if let Ok((e, n, ip, op, t, clk, tr, nt)) = q_node.get(entity) {
                 eprintln!("yup");
-                let i = if let Some(i) = ip { Some(i.len()) } else { None };
-                let o = if let Some(o) = op { Some(o.len()) } else { None };
-                let t = if let Some(t) = t { Some(t.clone()) } else { None };
+                let i = if let Some(i) = ip {
+                    Some(i.len())
+                } else {
+                    None
+                };
+                let o = if let Some(o) = op {
+                    Some(o.len())
+                } else {
+                    None
+                };
+                let t = if let Some(t) = t {
+                    Some(t.clone())
+                } else {
+                    None
+                };
 
                 let state = match &nt {
-                    NodeType::ToggleSwitch => {
-                        Some(NodeState::ToggleSwitch(op.unwrap()[0]))
-                    },
+                    NodeType::ToggleSwitch => Some(NodeState::ToggleSwitch(op.unwrap()[0])),
                     NodeType::Clock => {
                         let clk = clk.unwrap();
                         Some(NodeState::Clock(clk.0, clk.1, op.unwrap()[0]))
-                    },
+                    }
                     NodeType::LightBulb => Some(NodeState::LightBulb(ip.unwrap()[0])),
-                    _ => None
+                    _ => None,
                 };
 
                 let nc = NodusComponent {
@@ -108,9 +115,6 @@ pub fn delete_gate_system(
                 stack.undo.push(Action::Insert(nc));
             }
             // ----------------------------------- undo
-
-
-
 
             // Get the connections for each child
             // and disconnect all.

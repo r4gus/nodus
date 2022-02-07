@@ -1,6 +1,6 @@
-use bevy::prelude::*;
 use crate::world2d::camera2d::Camera2DPlugin;
 use crate::world2d::interaction2d::Interaction2DPlugin;
+use bevy::prelude::*;
 
 /// Ugly solution for ignoring input.
 pub struct Lock(pub bool);
@@ -42,10 +42,10 @@ fn update_cursor_system(
 */
 
 pub mod camera2d {
+    use super::{InteractionMode, Lock};
     use bevy::input::mouse::{MouseMotion, MouseWheel};
     use bevy::prelude::*;
     use core::ops::{Deref, DerefMut};
-    use super::{InteractionMode, Lock};
 
     pub struct Camera2DPlugin;
 
@@ -129,7 +129,9 @@ pub mod camera2d {
         mode: Res<InteractionMode>,
         lock: Res<Lock>,
     ) {
-        if lock.0 { return; }
+        if lock.0 {
+            return;
+        }
 
         let mut pan = Vec2::ZERO;
         let mut scroll = 0.0;
@@ -166,8 +168,8 @@ pub mod camera2d {
 
 pub mod interaction2d {
     use super::camera2d::MouseWorldPos;
-    use bevy::prelude::*;
     use super::{InteractionMode, Lock};
+    use bevy::prelude::*;
 
     pub struct Interaction2DPlugin;
 
@@ -338,7 +340,7 @@ pub mod interaction2d {
 
             if entities.len() > 1 {
                 if let Some(entity) = e {
-                   if entities.contains(&entity) {
+                    if entities.contains(&entity) {
                         for &e in entities.iter() {
                             if let Ok(t) = q_drag.get(e) {
                                 let p = Vec2::new(t.translation.x, t.translation.y);
@@ -348,7 +350,7 @@ pub mod interaction2d {
                                 });
                             }
                         }
-                   } else {
+                    } else {
                         for e in entities {
                             commands.entity(e).remove::<Selected>();
                         }
@@ -360,7 +362,7 @@ pub mod interaction2d {
                         }
 
                         commands.entity(entity).insert(Selected);
-                   }
+                    }
                 } else {
                     // Clicked on empty space -> deselect all
                     for entity in entities {
@@ -380,7 +382,7 @@ pub mod interaction2d {
                     }
 
                     commands.entity(entity).insert(Selected);
-                } 
+                }
             }
         }
     }

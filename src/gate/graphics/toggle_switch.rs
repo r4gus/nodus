@@ -1,12 +1,12 @@
-use crate::gate::core::{*, State};
-use crate::gate::serialize::*;
 use super::*;
-use nodus::world2d::interaction2d::{Interactable, Hover, Selectable, Draggable};
-use std::sync::atomic::Ordering;
+use crate::gate::core::{State, *};
+use crate::gate::serialize::*;
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
-use std::collections::HashMap;
 use lyon_tessellation::path::path::Builder;
+use nodus::world2d::interaction2d::{Draggable, Hover, Interactable, Selectable};
+use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 
 /// A toggle switch that can be either on or off.
 ///
@@ -17,16 +17,14 @@ pub struct ToggleSwitch;
 
 impl ToggleSwitch {
     /// Crate a new toggle switch at the specified position.
-    pub fn new(
-        commands: &mut Commands,
-        position: Vec2,
-        state: State,
-    ) -> Entity {
+    pub fn new(commands: &mut Commands, position: Vec2, state: State) -> Entity {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
         let switch = GeometryBuilder::build_as(
-            &ToggleSwitchShape { size: GATE_SIZE / 4. },
-             DrawMode::Outlined {
+            &ToggleSwitchShape {
+                size: GATE_SIZE / 4.,
+            },
+            DrawMode::Outlined {
                 fill_mode: FillMode::color(Color::WHITE),
                 outline_mode: StrokeMode::new(Color::BLACK, 8.0),
             },
@@ -58,7 +56,7 @@ impl ToggleSwitch {
             ConnectorType::Out,
             0,
         );
-        
+
         let factor = if state == State::High { 1. } else { -1. };
 
         let nod = GeometryBuilder::build_as(
@@ -126,7 +124,7 @@ impl Geometry for ToggleSwitchShape {
 
 /// Register clicks on a switch and change its state accordingly.
 pub fn toggle_switch_system(
-    mut commands: Commands,
+    _commands: Commands,
     mut q_outputs: Query<&mut Inputs>,
     mut q_switch: Query<(&Parent, &mut Transform), (With<Hover>, With<Switch>)>,
     mb: Res<Input<MouseButton>>,

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_prototype_lyon::entity::ShapeBundle;
-use bevy_prototype_lyon::prelude::*;
 use bevy_prototype_lyon::geometry::Geometry;
+use bevy_prototype_lyon::prelude::*;
 use lyon_tessellation::path::path::Builder;
 use nodus::world2d::camera2d::MainCamera;
 
@@ -76,11 +76,11 @@ struct MenuItemShape {
 
 impl Geometry for MenuItemShape {
     fn add_geometry(&self, b: &mut Builder) {
-        let mut path = create_menu_item_path(
-            self.radians_distance, 
-            self.inner_radius, 
-            self.outer_radius, 
-            self.item_nr
+        let path = create_menu_item_path(
+            self.radians_distance,
+            self.inner_radius,
+            self.outer_radius,
+            self.item_nr,
         );
         b.concatenate(&[path.0.as_slice()]);
     }
@@ -129,10 +129,10 @@ fn create_menu_item_visual(
 ) -> ShapeBundle {
     GeometryBuilder::build_as(
         &MenuItemShape {
-            radians_distance, 
-            inner_radius, 
-            outer_radius, 
-            item_nr
+            radians_distance,
+            inner_radius,
+            outer_radius,
+            item_nr,
         },
         DrawMode::Fill(FillMode::color(color)),
         Transform::from_xyz(0., 0., 0.),
@@ -164,7 +164,8 @@ fn open_menu_system(
         let mut evec = Vec::new();
         for i in 0..ev.items.len() {
             let center = radians_distance * i as f32 + radians_distance * 0.5;
-            let factor = settings.inner_radius + (settings.outer_radius - settings.inner_radius) * 0.5;
+            let factor =
+                settings.inner_radius + (settings.outer_radius - settings.inner_radius) * 0.5;
 
             evec.push(
                 commands
@@ -208,20 +209,14 @@ fn open_menu_system(
 
         commands
             .spawn()
-            .insert(GlobalTransform::from_xyz(
-                ev.position.x,
-                ev.position.y,
-                100.,
-            ).with_scale(
-                Vec3::new(scale, scale, scale),
-            ))
-            .insert(Transform::from_xyz(
-                ev.position.x, 
-                ev.position.y, 
-                100.
-            ).with_scale(
-                Vec3::new(scale, scale, scale),
-            ))
+            .insert(
+                GlobalTransform::from_xyz(ev.position.x, ev.position.y, 100.)
+                    .with_scale(Vec3::new(scale, scale, scale)),
+            )
+            .insert(
+                Transform::from_xyz(ev.position.x, ev.position.y, 100.)
+                    .with_scale(Vec3::new(scale, scale, scale)),
+            )
             .insert(Menu {
                 position: ev.position,
                 mouse_button: ev.mouse_button,
@@ -305,7 +300,7 @@ fn update_system(
     q_item: Query<(Entity, &MenuItem)>,
     q_item_info: Query<(Entity, &Children), With<ItemInfo>>,
     asset_server: Res<AssetServer>,
-    q_camera: Query<&mut Transform, With<MainCamera>>,
+    _q_camera: Query<&mut Transform, With<MainCamera>>,
 ) {
     if let Ok((children, mut menu)) = q_menu.get_single_mut() {
         for ev in ev_open.iter() {
@@ -318,7 +313,6 @@ fn update_system(
             for &child in children.iter() {
                 if let Ok((entity, item)) = q_item.get(child) {
                     if rad >= item.range.x && rad < item.range.y {
-
                         if entity != menu.selected {
                             let radians_distance = (std::f32::consts::PI * 2.) / menu.items as f32;
 

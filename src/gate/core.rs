@@ -1,9 +1,9 @@
+use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
 };
-use bevy::prelude::*;
-use serde::{Deserialize, Serialize};
 
 macro_rules! trans {
     ( $( $fun:expr ),* ) => {
@@ -28,7 +28,18 @@ pub struct Name(pub String);
 /// doesn't get a value for each input.
 /// `High` - The sate is high (`1`).
 /// `Low` - The state is low (`0`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Reflect, bevy::reflect::FromReflect, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Reflect,
+    bevy::reflect::FromReflect,
+    Serialize,
+    Deserialize,
+)]
 pub enum State {
     None,
     High,
@@ -36,7 +47,9 @@ pub enum State {
 }
 
 impl Default for State {
-    fn default() -> Self { Self::None }
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 /// Specify the minimum and maximum number a connectors for a logic component.
@@ -64,6 +77,7 @@ pub struct Gate {
 }
 
 impl Gate {
+    #[allow(dead_code)]
     pub fn new(
         commands: &mut Commands,
         name: &str,
@@ -83,21 +97,25 @@ impl Gate {
             .insert(Inputs(vec![State::None; in_range.min as usize]))
             .insert(Outputs(vec![State::None; out_range.min as usize]))
             .insert(Transitions(functions))
-            .insert(Targets(vec![TargetMap::from(HashMap::new()); out_range.min as usize]))
+            .insert(Targets(vec![
+                TargetMap::from(HashMap::new());
+                out_range.min as usize
+            ]))
             .id();
 
-            let mut connectors = Vec::new();
-            for i in 0..in_range.min as usize {
-                connectors.push(Connector::new(commands, ConnectorType::In, i));
-            }
-            for i in 0..in_range.min as usize {
-                connectors.push(Connector::new(commands, ConnectorType::Out, i));
-            }
-            commands.entity(gate).push_children(&connectors);
+        let mut connectors = Vec::new();
+        for i in 0..in_range.min as usize {
+            connectors.push(Connector::new(commands, ConnectorType::In, i));
+        }
+        for i in 0..in_range.min as usize {
+            connectors.push(Connector::new(commands, ConnectorType::Out, i));
+        }
+        commands.entity(gate).push_children(&connectors);
 
-            gate
+        gate
     }
 
+    #[allow(dead_code)]
     pub fn from_world(
         world: &mut World,
         name: &str,
@@ -105,7 +123,7 @@ impl Gate {
         out_range: NodeRange,
         functions: Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>,
     ) -> Entity {
-        let gate = world 
+        let gate = world
             .spawn()
             .insert(Self {
                 inputs: in_range.min,
@@ -117,19 +135,22 @@ impl Gate {
             .insert(Inputs(vec![State::None; in_range.min as usize]))
             .insert(Outputs(vec![State::None; out_range.min as usize]))
             .insert(Transitions(functions))
-            .insert(Targets(vec![TargetMap::from(HashMap::new()); out_range.min as usize]))
+            .insert(Targets(vec![
+                TargetMap::from(HashMap::new());
+                out_range.min as usize
+            ]))
             .id();
 
-            let mut connectors = Vec::new();
-            for i in 0..in_range.min as usize {
-                connectors.push(Connector::from_world(world, ConnectorType::In, i));
-            }
-            for i in 0..in_range.min as usize {
-                connectors.push(Connector::from_world(world, ConnectorType::Out, i));
-            }
-            world.entity_mut(gate).push_children(&connectors);
+        let mut connectors = Vec::new();
+        for i in 0..in_range.min as usize {
+            connectors.push(Connector::from_world(world, ConnectorType::In, i));
+        }
+        for i in 0..in_range.min as usize {
+            connectors.push(Connector::from_world(world, ConnectorType::Out, i));
+        }
+        world.entity_mut(gate).push_children(&connectors);
 
-            gate
+        gate
     }
 }
 
@@ -139,7 +160,9 @@ impl Gate {
 pub struct Inputs(pub Vec<State>);
 
 impl Default for Inputs {
-    fn default() -> Self { Inputs(Vec::new()) }
+    fn default() -> Self {
+        Inputs(Vec::new())
+    }
 }
 
 impl Deref for Inputs {
@@ -162,7 +185,9 @@ impl DerefMut for Inputs {
 pub struct Outputs(pub Vec<State>);
 
 impl Default for Outputs {
-    fn default() -> Self { Outputs(Vec::new()) }
+    fn default() -> Self {
+        Outputs(Vec::new())
+    }
 }
 
 impl Deref for Outputs {
@@ -187,7 +212,9 @@ impl DerefMut for Outputs {
 pub struct Transitions(pub Vec<Box<dyn Fn(&[State]) -> State + Send + Sync>>);
 
 impl Default for Transitions {
-    fn default() -> Self { Transitions(Vec::new()) }
+    fn default() -> Self {
+        Transitions(Vec::new())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Reflect, Default, Deserialize, Serialize)]
@@ -217,7 +244,7 @@ impl From<Vec<usize>> for TIndex {
 /// of inputs, specified by a index.
 ///
 /// The reason behind this is that the output of a logic component
-/// can be connected to multiple inputs of another logic component. 
+/// can be connected to multiple inputs of another logic component.
 /// This map is meant to keep track of all inputs of logic
 /// components a output is connected to.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -251,7 +278,9 @@ impl From<HashMap<Entity, TIndex>> for TargetMap {
 pub struct Targets(pub Vec<TargetMap>);
 
 impl Default for Targets {
-    fn default() -> Self { Targets(Vec::new()) }
+    fn default() -> Self {
+        Targets(Vec::new())
+    }
 }
 
 impl Deref for Targets {
@@ -275,7 +304,7 @@ pub enum ConnectorType {
     Out,
 }
 
-/// A connector acts as the interface of a logic component, 
+/// A connector acts as the interface of a logic component,
 /// e.g. logic gate.
 #[derive(Debug, Clone, PartialEq, Component)]
 pub struct Connector {
@@ -288,11 +317,7 @@ pub struct Connector {
 }
 
 impl Connector {
-    pub fn new(
-        commands: &mut Commands,
-        ctype: ConnectorType,
-        index: usize,
-    ) -> Entity {
+    pub fn new(commands: &mut Commands, ctype: ConnectorType, index: usize) -> Entity {
         commands
             .spawn()
             .insert(Connector { ctype, index })
@@ -301,12 +326,8 @@ impl Connector {
             .id()
     }
 
-    pub fn from_world(
-        world: &mut World,
-        ctype: ConnectorType,
-        index: usize,
-    ) -> Entity {
-        world 
+    pub fn from_world(world: &mut World, ctype: ConnectorType, index: usize) -> Entity {
+        world
             .spawn()
             .insert(Connector { ctype, index })
             .insert(Connections(Vec::new()))
@@ -335,7 +356,7 @@ impl DerefMut for Connections {
 
 impl Connections {
     /// Return an iterator over all connections.
-    fn iter(&self) -> impl Iterator<Item=&Entity> {
+    fn iter(&self) -> impl Iterator<Item = &Entity> {
         self.0.iter()
     }
 }
@@ -424,7 +445,10 @@ pub fn transition_system(mut query: Query<(&Inputs, &Transitions, &mut Outputs)>
 }
 
 /// System for writing the calculated output states to the inputs of each connected node.
-pub fn propagation_system(from_query: Query<(&Outputs, &Targets)>, mut to_query: Query<&mut Inputs>) {
+pub fn propagation_system(
+    from_query: Query<(&Outputs, &Targets)>,
+    mut to_query: Query<&mut Inputs>,
+) {
     for (outputs, targets) in from_query.iter() {
         for i in 0..outputs.len() {
             for (&entity, idxvec) in targets[i].iter() {
@@ -480,7 +504,7 @@ pub fn connect_event_system(
                 Vec3::new(0., 0., 0.),
             ),
         );
-        
+
         // Add the new connection line to the set of lines already connected to the gate.
         let input_parent = if let Ok((parent, mut connections)) = q_conns.get_mut(ev.input) {
             connections.0.push(line);
@@ -488,16 +512,16 @@ pub fn connect_event_system(
         } else {
             continue;
         };
-        
+
         // From this moment on the input connector isn't free
         // any more, up to the point where the connection is
         // removed.
         commands.entity(ev.input).remove::<Free>();
-        
+
         // Also update the output connector.
         if let Ok((parent, mut connections)) = q_conns.get_mut(ev.output) {
             connections.0.push(line);
-            
+
             // The target map hast to point to the input connector,
             // so it can receive updates.
             if let Ok(mut targets) = q_parent.get_mut(parent.0) {
@@ -598,13 +622,13 @@ pub fn disconnect_event_system(
 
 #[cfg(test)]
 mod tests {
-    use super::{*, State};
+    use super::{State, *};
     use bevy::ecs::event::Events;
 
     #[test]
     fn test_connect() {
         // Setup world
-        let mut world = World::default();            
+        let mut world = World::default();
 
         // First stage for event handling
         let mut first_stage = SystemStage::parallel();
@@ -621,7 +645,7 @@ mod tests {
         update_stage.add_system(transition_system.system().label("transition"));
         update_stage.add_system(propagation_system.system().after("transition"));
         update_stage.add_system(connect_event_system.system());
-       
+
         let not_gate1 = Gate::from_world(
             &mut world,
             "NOT Gate",
@@ -649,30 +673,54 @@ mod tests {
                 }
             },],
         );
-        
+
         // Nothing should happen
         first_stage.run(&mut world);
         update_stage.run(&mut world);
-        assert_eq!(world.entity(not_gate1).get::<Inputs>().unwrap()[0], State::None);
-        assert_eq!(world.entity(not_gate1).get::<Outputs>().unwrap()[0], State::None);
-        assert_eq!(world.entity(not_gate2).get::<Inputs>().unwrap()[0], State::None);
-        assert_eq!(world.entity(not_gate2).get::<Outputs>().unwrap()[0], State::None);
+        assert_eq!(
+            world.entity(not_gate1).get::<Inputs>().unwrap()[0],
+            State::None
+        );
+        assert_eq!(
+            world.entity(not_gate1).get::<Outputs>().unwrap()[0],
+            State::None
+        );
+        assert_eq!(
+            world.entity(not_gate2).get::<Inputs>().unwrap()[0],
+            State::None
+        );
+        assert_eq!(
+            world.entity(not_gate2).get::<Outputs>().unwrap()[0],
+            State::None
+        );
 
         // Set input of gate 1 to low  -> should update the output of gate 1
         world.entity_mut(not_gate1).get_mut::<Inputs>().unwrap()[0] = State::Low;
 
         first_stage.run(&mut world);
         update_stage.run(&mut world);
-        assert_eq!(world.entity(not_gate1).get::<Inputs>().unwrap()[0], State::Low);
-        assert_eq!(world.entity(not_gate1).get::<Outputs>().unwrap()[0], State::High);
-        assert_eq!(world.entity(not_gate2).get::<Inputs>().unwrap()[0], State::None);
-        assert_eq!(world.entity(not_gate2).get::<Outputs>().unwrap()[0], State::None);
+        assert_eq!(
+            world.entity(not_gate1).get::<Inputs>().unwrap()[0],
+            State::Low
+        );
+        assert_eq!(
+            world.entity(not_gate1).get::<Outputs>().unwrap()[0],
+            State::High
+        );
+        assert_eq!(
+            world.entity(not_gate2).get::<Inputs>().unwrap()[0],
+            State::None
+        );
+        assert_eq!(
+            world.entity(not_gate2).get::<Outputs>().unwrap()[0],
+            State::None
+        );
 
         // Now lets send a connection event
         /*
         world.get_resource_mut::<Events::<ConnectEvent>>().send(
             ConnectEvent {
-                output: 
+                output:
             }
         );
         */

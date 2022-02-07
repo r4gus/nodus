@@ -1,15 +1,12 @@
-use crate::gate::core::{*, State};
-use crate::gate::serialize::*;
 use super::*;
+use crate::gate::core::{State, *};
+use crate::gate::serialize::*;
 use bevy::prelude::*;
-use bevy_prototype_lyon::{
-    prelude::*,
-    entity::ShapeBundle,
-};
+use bevy_prototype_lyon::{entity::ShapeBundle, prelude::*};
 use lyon_tessellation::path::path::Builder;
-use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable};
-use std::sync::atomic::Ordering;
+use nodus::world2d::interaction2d::{Draggable, Interactable, Selectable};
 use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 
 pub struct GateSize {
     pub width: f32,
@@ -63,7 +60,7 @@ impl Gate {
     fn body_from_path(position: Vec3, path: PathBuilder) -> ShapeBundle {
         GeometryBuilder::build_as(
             &AnsiGateShape { path: path.build() },
-             DrawMode::Outlined {
+            DrawMode::Outlined {
                 fill_mode: FillMode::color(Color::WHITE),
                 outline_mode: StrokeMode::new(Color::BLACK, 6.0),
             },
@@ -79,7 +76,7 @@ impl Gate {
 
         GeometryBuilder::build_as(
             &shape,
-             DrawMode::Outlined {
+            DrawMode::Outlined {
                 fill_mode: FillMode::color(Color::WHITE),
                 outline_mode: StrokeMode::new(Color::BLACK, 6.0),
             },
@@ -95,7 +92,7 @@ impl Gate {
 
         GeometryBuilder::build_as(
             &shape,
-             DrawMode::Outlined {
+            DrawMode::Outlined {
                 fill_mode: FillMode::color(Color::WHITE),
                 outline_mode: StrokeMode::new(Color::BLACK, 6.0),
             },
@@ -137,43 +134,57 @@ impl Gate {
         match standard {
             SymbolStandard::ANSI(path) => {
                 distances = get_distances(ins as f32, outs as f32, size.x, size.y);
-                commands.entity(gate).insert_bundle(Gate::body_from_path(Vec3::new(position.x, position.y, z), path));
-            },
+                commands.entity(gate).insert_bundle(Gate::body_from_path(
+                    Vec3::new(position.x, position.y, z),
+                    path,
+                ));
+            }
             SymbolStandard::BS(font, symbol, inverted) => {
                 distances = get_distances(ins as f32, outs as f32, size.x, size.y);
-                commands.entity(gate)
-                    .insert_bundle(Gate::body(Vec3::new(position.x, position.y, z), Vec2::new(distances.width, distances.height)))
+                commands
+                    .entity(gate)
+                    .insert_bundle(Gate::body(
+                        Vec3::new(position.x, position.y, z),
+                        Vec2::new(distances.width, distances.height),
+                    ))
                     .insert(BritishStandard);
 
                 let symbol = commands
-                        .spawn_bundle(Text2dBundle {
-                            text: Text::with_section(
-                                &symbol,
-                                TextStyle {
-                                    font: font.clone(),
-                                    font_size: 30.0,
-                                    color: Color::BLACK,
-                                },
-                                TextAlignment {
-                                    horizontal: HorizontalAlign::Center,
-                                    ..Default::default()
-                                },
-                            ),
-                            transform: Transform::from_xyz(0., 0., z),
-                            ..Default::default()
-                        }).id();
+                    .spawn_bundle(Text2dBundle {
+                        text: Text::with_section(
+                            &symbol,
+                            TextStyle {
+                                font: font.clone(),
+                                font_size: 30.0,
+                                color: Color::BLACK,
+                            },
+                            TextAlignment {
+                                horizontal: HorizontalAlign::Center,
+                                ..Default::default()
+                            },
+                        ),
+                        transform: Transform::from_xyz(0., 0., z),
+                        ..Default::default()
+                    })
+                    .id();
                 commands.entity(gate).push_children(&[symbol]);
 
                 if inverted {
                     let radius = size.y * 0.08;
-                    let id = commands.spawn_bundle(Gate::invert_bs(Vec3::new(size.x / 2. + radius, 0., z), radius)).id();
+                    let id = commands
+                        .spawn_bundle(Gate::invert_bs(
+                            Vec3::new(size.x / 2. + radius, 0., z),
+                            radius,
+                        ))
+                        .id();
 
                     commands.entity(gate).push_children(&[id]);
                 }
             }
         }
 
-        commands.entity(gate)
+        commands
+            .entity(gate)
             .insert(Interactable::new(
                 Vec2::new(0., 0.),
                 Vec2::new(distances.width, distances.height),
@@ -216,7 +227,13 @@ impl Gate {
 }
 
 impl Gate {
-    pub fn not_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
+    pub fn not_gate_bs_(
+        commands: &mut Commands,
+        position: Vec2,
+        ins: usize,
+        outs: usize,
+        font: Handle<Font>,
+    ) -> Entity {
         let g = Gate::spawn(
             commands,
             "NOT Gate",
@@ -243,7 +260,13 @@ impl Gate {
         Self::not_gate_bs_(commands, position, 1, 1, font)
     }
 
-    pub fn and_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
+    pub fn and_gate_bs_(
+        commands: &mut Commands,
+        position: Vec2,
+        ins: usize,
+        outs: usize,
+        font: Handle<Font>,
+    ) -> Entity {
         let g = Gate::spawn(
             commands,
             "AND Gate",
@@ -251,7 +274,8 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
-            ins, outs,
+            ins,
+            outs,
             trans![|inputs| {
                 let mut ret = State::High;
                 for i in inputs {
@@ -278,7 +302,13 @@ impl Gate {
         Self::and_gate_bs_(commands, position, 2, 1, font)
     }
 
-    pub fn nand_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
+    pub fn nand_gate_bs_(
+        commands: &mut Commands,
+        position: Vec2,
+        ins: usize,
+        outs: usize,
+        font: Handle<Font>,
+    ) -> Entity {
         let g = Gate::spawn(
             commands,
             "NAND Gate",
@@ -286,7 +316,8 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
-            ins, outs,
+            ins,
+            outs,
             trans![|inputs| {
                 let mut ret = State::Low;
                 for i in inputs {
@@ -313,7 +344,13 @@ impl Gate {
         Self::nand_gate_bs_(commands, position, 2, 1, font)
     }
 
-    pub fn or_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
+    pub fn or_gate_bs_(
+        commands: &mut Commands,
+        position: Vec2,
+        ins: usize,
+        outs: usize,
+        font: Handle<Font>,
+    ) -> Entity {
         let g = Gate::spawn(
             commands,
             "OR Gate",
@@ -321,7 +358,8 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
-            ins, outs,
+            ins,
+            outs,
             trans![|inputs| {
                 let mut ret = State::Low;
                 for i in inputs {
@@ -348,7 +386,13 @@ impl Gate {
         Self::or_gate_bs_(commands, position, 2, 1, font)
     }
 
-    pub fn nor_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity {
+    pub fn nor_gate_bs_(
+        commands: &mut Commands,
+        position: Vec2,
+        ins: usize,
+        outs: usize,
+        font: Handle<Font>,
+    ) -> Entity {
         let g = Gate::spawn(
             commands,
             "NOR Gate",
@@ -356,7 +400,8 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
-            ins, outs,
+            ins,
+            outs,
             trans![|inputs| {
                 let mut ret = State::High;
                 for i in inputs {
@@ -383,7 +428,13 @@ impl Gate {
         Self::nor_gate_bs_(commands, position, 2, 1, font)
     }
 
-    pub fn xor_gate_bs_(commands: &mut Commands, position: Vec2, ins: usize, outs: usize, font: Handle<Font>) -> Entity{
+    pub fn xor_gate_bs_(
+        commands: &mut Commands,
+        position: Vec2,
+        ins: usize,
+        outs: usize,
+        font: Handle<Font>,
+    ) -> Entity {
         let g = Gate::spawn(
             commands,
             "XOR Gate",
@@ -391,7 +442,8 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
-            ins, outs,
+            ins,
+            outs,
             trans![|inputs| {
                 let mut ret = State::Low;
                 for i in inputs {
@@ -431,7 +483,8 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_WIDTH),
             NodeRange { min: 0, max: 0 },
             NodeRange { min: 1, max: 1 },
-            0, 1,
+            0,
+            1,
             trans![|_| { State::High },],
             SymbolStandard::BS(font, "1".to_string(), false),
         );
@@ -447,7 +500,8 @@ impl Gate {
             Vec2::new(GATE_WIDTH, GATE_WIDTH),
             NodeRange { min: 0, max: 0 },
             NodeRange { min: 1, max: 1 },
-            0, 1,
+            0,
+            1,
             trans![|_| { State::Low },],
             SymbolStandard::BS(font, "0".to_string(), false),
         );
@@ -456,12 +510,10 @@ impl Gate {
     }
 }
 
-
 pub struct ChangeInput {
     pub gate: Entity,
     pub to: u32,
 }
-
 
 pub fn change_input_system(
     mut commands: Commands,
@@ -479,7 +531,9 @@ pub fn change_input_system(
     mut q_connector: Query<(&mut Connector, &mut Transform, &Connections)>,
 ) {
     for ev in ev_connect.iter() {
-        if let Ok((gent, mut gate, mut inputs, mut interact, transform, bs)) = q_gate.get_mut(ev.gate) {
+        if let Ok((gent, mut gate, mut inputs, mut interact, transform, bs)) =
+            q_gate.get_mut(ev.gate)
+        {
             // Update input count
             gate.inputs = ev.to;
 
@@ -503,15 +557,8 @@ pub fn change_input_system(
                 interact.update_size(0., 0., dists.width, dists.height);
 
                 let gate = Gate::body(
-                    Vec3::new(
-                        translation.x,
-                        translation.y,
-                        translation.z,
-                    ),
-                    Vec2::new(
-                        dists.width,
-                        dists.height,
-                    )
+                    Vec3::new(translation.x, translation.y, translation.z),
+                    Vec2::new(dists.width, dists.height),
                 );
 
                 // Update body

@@ -1,51 +1,26 @@
 use crate::radial_menu::{OpenMenuEvent, PropagateSelectionEvent, UpdateCursorPositionEvent};
 use crate::{FontAssets, GameState};
 use bevy::prelude::*;
-use bevy::app::AppExit;
-use bevy_asset_loader::{AssetCollection, AssetLoader};
-use bevy_egui::{egui, EguiContext, EguiSettings};
-use bevy_prototype_lyon::entity::ShapeBundle;
-use bevy_prototype_lyon::prelude::*;
-use bevy_prototype_lyon::shapes::SvgPathShape;
+
+use bevy_asset_loader::AssetCollection;
+
 use nodus::world2d::camera2d::MouseWorldPos;
-use nodus::world2d::interaction2d::*;
-use std::sync::atomic::{AtomicI32, Ordering};
-use lyon_tessellation::path::path::Builder;
-use std::collections::HashMap;
 
 use crate::gate::{
-    ui::*,
-    core::{*, State, Name, trans},
-    systems::*,
-    serialize::*,
-    undo::*,
-    graphics::{
-        selector::*,
-        highlight::*,
-        light_bulb::*,
-        toggle_switch::*,
-        gate::*,
-        connector::*,
-        connection_line::*,
-        background::*,
-        clk::*,
-        Z_INDEX,
-        GATE_SIZE, GATE_WIDTH, GATE_HEIGHT,
-    },
+    core::{State, *},
+    graphics::{clk::*, light_bulb::*, toggle_switch::*},
 };
-use nodus::world2d::camera2d::MainCamera;
 
 pub struct GateMenuPlugin;
 
 impl Plugin for GateMenuPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .insert_resource(MenuState(MenuStates::Idle))
+        app.insert_resource(MenuState(MenuStates::Idle))
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
                     .with_system(open_radial_menu_system)
                     .with_system(handle_radial_menu_event_system)
-                    .with_system(update_radial_menu_system)
+                    .with_system(update_radial_menu_system),
             );
     }
 }
@@ -248,11 +223,7 @@ fn handle_radial_menu_event_system(
                                 "Toggle Switch".to_string(),
                                 Vec2::new(80., 80.),
                             ),
-                            (
-                                assets.clk.clone(),
-                                "Clock".to_string(),
-                                Vec2::new(70., 70.),
-                            ),
+                            (assets.clk.clone(), "Clock".to_string(), Vec2::new(70., 70.)),
                         ],
                     });
                     ms.0 = MenuStates::Inputs;
@@ -342,11 +313,21 @@ fn handle_radial_menu_event_system(
                     ms.0 = MenuStates::Idle;
                 }
                 3 => {
-                    ToggleSwitch::new(&mut commands, Vec2::new(ev.position.x, ev.position.y), State::Low);
+                    ToggleSwitch::new(
+                        &mut commands,
+                        Vec2::new(ev.position.x, ev.position.y),
+                        State::Low,
+                    );
                     ms.0 = MenuStates::Idle;
                 }
                 4 => {
-                    Clk::spawn(&mut commands, Vec2::new(ev.position.x, ev.position.y), 1.0, 0.0, State::Low);
+                    Clk::spawn(
+                        &mut commands,
+                        Vec2::new(ev.position.x, ev.position.y),
+                        1.0,
+                        0.0,
+                        State::Low,
+                    );
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {
@@ -382,7 +363,11 @@ fn handle_radial_menu_event_system(
             },
             MenuStates::Outputs => match ev.id {
                 1 => {
-                    LightBulb::spawn(&mut commands, Vec2::new(ev.position.x, ev.position.y), State::None);
+                    LightBulb::spawn(
+                        &mut commands,
+                        Vec2::new(ev.position.x, ev.position.y),
+                        State::None,
+                    );
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {
@@ -420,4 +405,3 @@ fn handle_radial_menu_event_system(
         }
     }
 }
-

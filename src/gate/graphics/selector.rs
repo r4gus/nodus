@@ -1,16 +1,12 @@
-use bevy::prelude::*;
 use crate::gate::{
-    core::{Gate},
-    graphics::{
-        light_bulb::LightBulb,
-        toggle_switch::ToggleSwitch,
-        clk::Clk,
-    },
+    core::Gate,
+    graphics::{clk::Clk, light_bulb::LightBulb, toggle_switch::ToggleSwitch},
 };
+use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
-use nodus::world2d::{Lock, InteractionMode};
 use nodus::world2d::camera2d::MouseWorldPos;
 use nodus::world2d::interaction2d::{Hover, Selected};
+use nodus::world2d::{InteractionMode, Lock};
 
 #[derive(Debug, Clone, PartialEq, Component)]
 pub struct SelectBox {
@@ -23,11 +19,16 @@ pub fn selector_system(
     mw: Res<MouseWorldPos>,
     lock: Res<Lock>,
     mode: Res<InteractionMode>,
-    q_gate: Query<(Entity, &Transform), Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>>,
-    q_hover: Query<Entity, (With<Hover>)>,
+    q_gate: Query<
+        (Entity, &Transform),
+        Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>,
+    >,
+    q_hover: Query<Entity, With<Hover>>,
     mut q_select: Query<(Entity, &mut Path, &SelectBox), With<SelectBox>>,
 ) {
-    if lock.0 || *mode != InteractionMode::Select { return; }
+    if lock.0 || *mode != InteractionMode::Select {
+        return;
+    }
 
     if q_hover.is_empty() && mb.just_pressed(MouseButton::Left) {
         let frame = GeometryBuilder::build_as(
@@ -42,9 +43,9 @@ pub fn selector_system(
             Transform::from_xyz(mw.x, mw.y, 900.0),
         );
 
-        commands
-            .spawn_bundle(frame)
-            .insert(SelectBox { start: Vec2::new(mw.x, mw.y) });
+        commands.spawn_bundle(frame).insert(SelectBox {
+            start: Vec2::new(mw.x, mw.y),
+        });
     } else if !q_select.is_empty() && mb.just_released(MouseButton::Left) {
         if let Ok((entity, _, sb)) = q_select.get_single() {
             let (wx, wy) = if sb.start.x < mw.x {

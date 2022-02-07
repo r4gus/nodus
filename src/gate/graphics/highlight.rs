@@ -1,7 +1,7 @@
-use nodus::world2d::interaction2d::Selected;
-use crate::gate::core::{Connector, ConnectionLine};
+use crate::gate::core::{ConnectionLine, Connector};
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
+use nodus::world2d::interaction2d::Selected;
 
 /// Marker component for entities that act as highlighters.
 #[derive(Debug, Clone, PartialEq, Component)]
@@ -21,14 +21,24 @@ impl Highlighter {
                 &path.0,
                 DrawMode::Fill(FillMode::color(RUST_COLOR)),
                 Transform::from_xyz(0.0, 0.0, 0.1),
-            )).insert(Highlighter).id()
+            ))
+            .insert(Highlighter)
+            .id()
     }
 }
 
 /// Hightlight a entity (gate, input control, ...) the user has clicked on.
 pub fn highlight_system(
     mut commands: Commands,
-    query: Query<(Entity, &Path), (Added<Selected>, Without<Highlighted>, Without<Connector>, Without<ConnectionLine>)>,
+    query: Query<
+        (Entity, &Path),
+        (
+            Added<Selected>,
+            Without<Highlighted>,
+            Without<Connector>,
+            Without<ConnectionLine>,
+        ),
+    >,
 ) {
     for (entity, path) in query.iter() {
         let h = Highlighter::spawn(&mut commands, &path);
@@ -48,7 +58,7 @@ pub fn remove_highlight_system(
 
         for &child in children.iter() {
             if let Ok(entity) = q_child.get(child) {
-                commands.entity(entity).despawn_recursive(); 
+                commands.entity(entity).despawn_recursive();
             }
         }
     }
@@ -63,7 +73,7 @@ pub fn change_highlight_system(
     for (parent, children, path) in query.iter() {
         for &child in children.iter() {
             if let Ok(entity) = q_child.get(child) {
-                commands.entity(entity).despawn_recursive(); 
+                commands.entity(entity).despawn_recursive();
             }
         }
 

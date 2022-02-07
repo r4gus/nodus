@@ -1,16 +1,10 @@
-use crate::gate::{
-    core::{*, State},
-};
-use crate::gate::serialize::*;
 use super::*;
-use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable};
-use std::sync::atomic::Ordering;
+use crate::gate::core::{State, *};
+use crate::gate::serialize::*;
 use bevy::prelude::*;
-use bevy_prototype_lyon::{
-    prelude::*,
-    entity::ShapeBundle,
-    shapes::SvgPathShape,
-};
+use bevy_prototype_lyon::{entity::ShapeBundle, prelude::*, shapes::SvgPathShape};
+use nodus::world2d::interaction2d::{Draggable, Interactable, Selectable};
+use std::sync::atomic::Ordering;
 
 /// SVG path of a light bulb.
 const LIGHT_BULB_PATH: &str = "M290.222,0C180.731,0,91.8,88.931,91.8,198.422c0,54.506,17.69,86.062,33.469,113.315l0,0
@@ -48,7 +42,7 @@ impl LightBulb {
                 svg_doc_size_in_px: Vec2::new(580.922, 580.922),
                 svg_path_string: LIGHT_BULB_PATH.to_string(),
             },
-             DrawMode::Outlined {
+            DrawMode::Outlined {
                 fill_mode: FillMode::color(color),
                 outline_mode: StrokeMode::new(Color::BLACK, 8.0),
             },
@@ -57,11 +51,7 @@ impl LightBulb {
     }
 
     /// Create a new light bulb at the specified position.
-    pub fn spawn(
-        commands: &mut Commands,
-        position: Vec2,
-        state: State,
-    ) -> Entity {
+    pub fn spawn(commands: &mut Commands, position: Vec2, state: State) -> Entity {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
         let parent = commands
@@ -82,7 +72,11 @@ impl LightBulb {
             .id();
 
         let bulb = commands
-            .spawn_bundle(LightBulb::shape_bundle(if state == State::High { Color::BLUE } else { Color::WHITE }))
+            .spawn_bundle(LightBulb::shape_bundle(if state == State::High {
+                Color::BLUE
+            } else {
+                Color::WHITE
+            }))
             .id();
 
         let child = Connector::with_line(
@@ -99,29 +93,28 @@ impl LightBulb {
 }
 
 pub fn light_bulb_system(
-    mut commands: Commands,
+    _commands: Commands,
     mut q_light: Query<(&Children, &Inputs, &mut LightBulb)>,
     mut draw: Query<&mut DrawMode, Without<Connector>>,
 ) {
     for (children, inputs, mut light) in q_light.iter_mut() {
-
         // Update the light bulbs visuals only if the state has changed.
         if inputs[0] != light.state {
-            
             // Colorize the light bulb based on its new state.
             let color = match inputs[0] {
                 State::High => Color::BLUE,
                 _ => Color::WHITE,
             };
-            
+
             // One of the entities children is the actual svg image. Find
             // and update its color;
             for &child in children.iter() {
                 if let Ok(mut mode) = draw.get_mut(child) {
                     if let DrawMode::Outlined {
                         ref mut fill_mode,
-                        ref mut outline_mode,
-                    } = *mode {
+                        outline_mode: _,
+                    } = *mode
+                    {
                         fill_mode.color = color;
                     }
                 }

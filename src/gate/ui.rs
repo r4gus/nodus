@@ -1,18 +1,18 @@
-use bevy::prelude::*;
-use bevy::app::AppExit;
-use nodus::world2d::*;
-use nodus::world2d::camera2d::MainCamera;
-use nodus::world2d::interaction2d::*;
-use bevy_egui::{egui, EguiContext, EguiSettings};
 use crate::gate::{
-    undo::*,
-    serialize::*,
-    core::{*, Name},
+    core::{Name, *},
+    file_browser::*,
     graphics::clk::Clk,
     graphics::gate::ChangeInput,
-    file_browser::*,
+    serialize::*,
+    undo::*,
 };
 use crate::radial_menu::Menu;
+use bevy::app::AppExit;
+use bevy::prelude::*;
+use bevy_egui::{egui, EguiContext, EguiSettings};
+use nodus::world2d::camera2d::MainCamera;
+use nodus::world2d::interaction2d::*;
+use nodus::world2d::*;
 
 const MIT: &str = "\
 License
@@ -45,21 +45,22 @@ pub fn update_lock(
     browser: Res<FileBrowser>,
     q_menu: Query<&Menu>,
 ) {
-    let menu = if let Ok(_) = q_menu.get_single() { true } else { false };
+    let menu = if let Ok(_) = q_menu.get_single() {
+        true
+    } else {
+        false
+    };
 
     lock.0 = about.open || browser.open || menu;
 }
 
 pub fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
-    if let Some(window) = windows.get_primary() {
+    if let Some(_window) = windows.get_primary() {
         egui_settings.scale_factor = 1.5;
     }
 }
 
-pub fn load_gui_assets(
-    mut egui_context: ResMut<EguiContext>,
-    assets: Res<AssetServer>,
-) {
+pub fn load_gui_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) {
     let texture_handle = assets.load("misc/LOGO.png");
     egui_context.set_egui_texture(NODUS_LOGO_ID, texture_handle);
 }
@@ -74,11 +75,17 @@ pub fn ui_scroll_system(
             .show(egui_context.ctx(), |ui| {
                 let mut x = transform.scale.x;
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("\u{B1}").strong().color(egui::Color32::BLACK));
-                    ui.add(egui::Slider::new(&mut x, 1.0..=5.0)
-                           .show_value(false)
+                    ui.label(
+                        egui::RichText::new("\u{B1}")
+                            .strong()
+                            .color(egui::Color32::BLACK),
                     );
-                    ui.label(egui::RichText::new("\u{1F50E}").strong().color(egui::Color32::BLACK));
+                    ui.add(egui::Slider::new(&mut x, 1.0..=5.0).show_value(false));
+                    ui.label(
+                        egui::RichText::new("\u{1F50E}")
+                            .strong()
+                            .color(egui::Color32::BLACK),
+                    );
                 });
                 transform.scale = Vec3::new(x, x, x);
             });
@@ -98,10 +105,7 @@ pub struct GuiMenu {
     pub open: bool,
 }
 
-pub fn ui_gui_about(
-    egui_context: ResMut<EguiContext>,
-    mut r: ResMut<GuiMenu>,
-) {
+pub fn ui_gui_about(egui_context: ResMut<EguiContext>, mut r: ResMut<GuiMenu>) {
     if let GuiMenuOptions::About = r.option {
         egui::Window::new("About")
             .resizable(false)
@@ -270,42 +274,57 @@ pub fn ui_top_panel_system(
                         ui.close_menu();
                     }
                 });
-
             });
 
             columns[1].with_layout(egui::Layout::right_to_left(), |ui| {
                 let blue = egui::Color32::BLUE;
                 let grey = egui::Color32::DARK_GRAY;
-                if ui.add(egui::Button::new("\u{1F542}")
-                    .fill(if *mode == InteractionMode::Pan { blue } else { grey }))
+                if ui
+                    .add(
+                        egui::Button::new("\u{1F542}").fill(if *mode == InteractionMode::Pan {
+                            blue
+                        } else {
+                            grey
+                        }),
+                    )
                     .on_hover_text("Pan Camera")
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .clicked() 
-                { // pan
+                    .clicked()
+                {
+                    // pan
                     *mode = InteractionMode::Pan;
                 }
-                if ui.add(egui::Button::new("\u{1F446}")
-                    .fill(if *mode == InteractionMode::Select { blue } else { grey }))
+                if ui
+                    .add(
+                        egui::Button::new("\u{1F446}").fill(if *mode == InteractionMode::Select {
+                            blue
+                        } else {
+                            grey
+                        }),
+                    )
                     .on_hover_text("Select")
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .clicked() 
-                { // select
+                    .clicked()
+                {
+                    // select
                     *mode = InteractionMode::Select;
                 }
 
-                if ui.add(egui::Button::new("redo"))
+                if ui
+                    .add(egui::Button::new("redo"))
                     .on_hover_text("Redo last action")
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                     .clicked()
                 {
-                    ev_undo.send(UndoEvent::Redo); 
+                    ev_undo.send(UndoEvent::Redo);
                 }
-                if ui.add(egui::Button::new("undo"))
+                if ui
+                    .add(egui::Button::new("undo"))
                     .on_hover_text("Undo last action")
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                     .clicked()
                 {
-                    ev_undo.send(UndoEvent::Undo); 
+                    ev_undo.send(UndoEvent::Undo);
                 }
             });
         });
@@ -362,9 +381,11 @@ pub fn ui_node_info_system(
                     if ui
                         .horizontal(|ui| {
                             ui.label("Signal Duration: ");
-                            ui.add(egui::DragValue::new(&mut clk_f32)
+                            ui.add(
+                                egui::DragValue::new(&mut clk_f32)
                                     .speed(1.0)
-                                    .clamp_range(std::ops::RangeInclusive::new(250.0, 600000.0))); 
+                                    .clamp_range(std::ops::RangeInclusive::new(250.0, 600000.0)),
+                            );
                         })
                         .response
                         .hovered()

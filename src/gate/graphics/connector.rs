@@ -1,11 +1,8 @@
 use crate::gate::core::*;
 use bevy::prelude::*;
-use bevy_prototype_lyon::{
-    prelude::*,
-    entity::ShapeBundle,
-};
-use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable, Hover, Drag};
+use bevy_prototype_lyon::{entity::ShapeBundle, prelude::*};
 use nodus::world2d::camera2d::MouseWorldPos;
+use nodus::world2d::interaction2d::{Drag, Draggable, Hover, Interactable, Selectable};
 
 impl Connector {
     /// Create a new connector for a logic node.

@@ -1,12 +1,12 @@
-pub mod light_bulb;
-pub mod toggle_switch;
-pub mod clk;
-pub mod gate;
-pub mod connector;
-pub mod connection_line;
 pub mod background;
+pub mod clk;
+pub mod connection_line;
+pub mod connector;
+pub mod gate;
 pub mod highlight;
+pub mod light_bulb;
 pub mod selector;
+pub mod toggle_switch;
 
 use core::sync::atomic::AtomicI32;
 

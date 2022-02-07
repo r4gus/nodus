@@ -1,34 +1,25 @@
 pub mod core;
+pub mod file_browser;
 pub mod graphics;
+pub mod serialize;
 pub mod systems;
 pub mod ui;
-pub mod serialize;
-pub mod file_browser;
 pub mod undo;
 
+use crate::gate::{
+    core::*,
+    graphics::{
+        background::*, clk::*, connection_line::*, connector::*, gate::*, highlight::*,
+        light_bulb::*, selector::*, toggle_switch::*,
+    },
+    serialize::*,
+    systems::*,
+    ui::*,
+    undo::*,
+};
 use crate::rmenu::*;
 use bevy::prelude::*;
-use crate::gate::{
-    ui::*,
-    core::{*, State, Name, trans},
-    systems::*,
-    serialize::*,
-    undo::*,
-    graphics::{
-        selector::*,
-        highlight::*,
-        light_bulb::*,
-        toggle_switch::*,
-        gate::*,
-        connector::*,
-        connection_line::*,
-        background::*,
-        clk::*,
-        Z_INDEX,
-        GATE_SIZE, GATE_WIDTH, GATE_HEIGHT,
-    },
-};
-use crate::radial_menu::{OpenMenuEvent, PropagateSelectionEvent, UpdateCursorPositionEvent};
+
 use super::GameState;
 
 pub struct LogicComponentSystem;
@@ -50,7 +41,10 @@ impl Plugin for LogicComponentSystem {
                 timestep: 0.5,
                 update: false,
             })
-            .insert_resource(GuiMenu { option: GuiMenuOptions::None , open: false })
+            .insert_resource(GuiMenu {
+                option: GuiMenuOptions::None,
+                open: false,
+            })
             .add_startup_system(update_ui_scale_factor)
             .add_startup_system(load_gui_assets)
             .add_system_set(
@@ -60,7 +54,7 @@ impl Plugin for LogicComponentSystem {
                     .with_system(ui_node_info_system.system())
                     .with_system(ui_top_panel_system)
                     .with_system(ui_scroll_system)
-                    .with_system(ui_gui_about)
+                    .with_system(ui_gui_about),
             )
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
@@ -97,7 +91,7 @@ impl Plugin for LogicComponentSystem {
                     .with_system(toggle_switch_system.system().before("disconnect"))
                     .with_system(line_selection_system.system().after("draw_line"))
                     .with_system(draw_background_grid_system)
-                    .with_system(clk_system)
+                    .with_system(clk_system),
             )
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
@@ -113,10 +107,10 @@ impl Plugin for LogicComponentSystem {
                     .with_system(link_gates_system.label("link_gates_system"))
                     .with_system(load_event_system.after("link_gates_system"))
                     .with_system(shortcut_system)
-                    .with_system(update_lock)
+                    .with_system(update_lock),
             )
-            .add_system_set(SystemSet::on_enter(GameState::InGame)
-                    //.with_system(setup.system())
+            .add_system_set(
+                SystemSet::on_enter(GameState::InGame), //.with_system(setup.system())
             );
 
         info!("NodePlugin loaded");
