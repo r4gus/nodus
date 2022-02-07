@@ -124,7 +124,6 @@ pub mod camera2d {
         mut ev_motion: EventReader<MouseMotion>,
         mut ev_scroll: EventReader<MouseWheel>,
         input_mouse: Res<Input<MouseButton>>,
-        input_keyboard: Res<Input<KeyCode>>,
         mut q_camera: Query<&mut Transform, With<MainCamera>>,
         time: Res<Time>,
         mode: Res<InteractionMode>,

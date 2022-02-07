@@ -5,7 +5,7 @@ use bevy_prototype_lyon::{
     entity::ShapeBundle,
 };
 use lyon_tessellation::path::path::Builder;
-use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable, Hover, Drag, Selected};
+use nodus::world2d::interaction2d::Selected;
 use nodus::world2d::camera2d::MouseWorldPos;
 
 /// Sameple the cubic bezier curve, defined by s` (start),

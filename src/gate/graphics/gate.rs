@@ -574,7 +574,7 @@ pub fn change_input_system(
                     ),
                     GATE_SIZE * 0.1,
                     ConnectorType::In,
-                    (i - 1),
+                    i - 1,
                 ));
             }
             if !entvec.is_empty() {

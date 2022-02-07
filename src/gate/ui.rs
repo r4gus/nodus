@@ -5,6 +5,7 @@ use nodus::world2d::camera2d::MainCamera;
 use nodus::world2d::interaction2d::*;
 use bevy_egui::{egui, EguiContext, EguiSettings};
 use crate::gate::{
+    undo::*,
     serialize::*,
     core::{*, Name},
     graphics::clk::Clk,
@@ -213,6 +214,7 @@ pub fn ui_top_panel_system(
     mut fbe: EventWriter<OpenBrowserEvent>,
     mut ev_save: EventWriter<SaveEvent>,
     mut ev_new: EventWriter<NewFileEvent>,
+    mut ev_undo: EventWriter<UndoEvent>,
     mut r: ResMut<GuiMenu>,
     curr_open: Res<CurrentlyOpen>,
     mut mode: ResMut<InteractionMode>,
@@ -289,6 +291,21 @@ pub fn ui_top_panel_system(
                     .clicked() 
                 { // select
                     *mode = InteractionMode::Select;
+                }
+
+                if ui.add(egui::Button::new("redo"))
+                    .on_hover_text("Redo last action")
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .clicked()
+                {
+                    ev_undo.send(UndoEvent::Redo); 
+                }
+                if ui.add(egui::Button::new("undo"))
+                    .on_hover_text("Undo last action")
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .clicked()
+                {
+                    ev_undo.send(UndoEvent::Undo); 
                 }
             });
         });

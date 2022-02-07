@@ -1,8 +1,5 @@
 use bevy::prelude::*;
-use bevy_prototype_lyon::{
-    prelude::*,
-    entity::ShapeBundle,
-};
+use bevy_prototype_lyon::prelude::*;
 use nodus::world2d::camera2d::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Component)]

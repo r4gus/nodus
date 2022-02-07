@@ -49,14 +49,14 @@ pub enum NodeState {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NodusComponent {
-    id: Entity,
-    name: String,
-    inputs: Option<usize>,
-    outputs: Option<usize>,
-    targets: Option<Targets>,
-    position: Vec2,
-    ntype: NodeType,
-    state: Option<NodeState>,
+    pub id: Entity,
+    pub name: String,
+    pub inputs: Option<usize>,
+    pub outputs: Option<usize>,
+    pub targets: Option<Targets>,
+    pub position: Vec2,
+    pub ntype: NodeType,
+    pub state: Option<NodeState>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

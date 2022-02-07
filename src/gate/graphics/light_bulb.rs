@@ -1,6 +1,5 @@
 use crate::gate::{
     core::{*, State},
-    graphics::connector::*,
 };
 use crate::gate::serialize::*;
 use super::*;

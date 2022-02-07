@@ -4,11 +4,7 @@ use super::*;
 use nodus::world2d::interaction2d::{Interactable, Hover, Selectable, Draggable};
 use std::sync::atomic::Ordering;
 use bevy::prelude::*;
-use bevy_prototype_lyon::{
-    prelude::*,
-    entity::ShapeBundle,
-    shapes::SvgPathShape,
-};
+use bevy_prototype_lyon::prelude::*;
 use std::collections::HashMap;
 use lyon_tessellation::path::path::Builder;
 

@@ -1,11 +1,10 @@
-use crate::gate::core::{*, State};
+use crate::gate::core::*;
 use bevy::prelude::*;
 use bevy_prototype_lyon::{
     prelude::*,
     entity::ShapeBundle,
 };
 use nodus::world2d::interaction2d::{Interactable, Selectable, Draggable, Hover, Drag};
-use std::sync::atomic::Ordering;
 use nodus::world2d::camera2d::MouseWorldPos;
 
 impl Connector {
