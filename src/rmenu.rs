@@ -1,7 +1,7 @@
 use crate::radial_menu::{OpenMenuEvent, PropagateSelectionEvent, UpdateCursorPositionEvent};
 use crate::{FontAssets, GameState};
 use bevy::prelude::*;
-
+use crate::gate::systems::InsertGateEvent;
 use bevy_asset_loader::AssetCollection;
 
 use nodus::world2d::camera2d::MouseWorldPos;
@@ -19,7 +19,7 @@ impl Plugin for GateMenuPlugin {
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
                     .with_system(open_radial_menu_system)
-                    .with_system(handle_radial_menu_event_system)
+                    .with_system(handle_radial_menu_event_system.label("handle_rad_event"))
                     .with_system(update_radial_menu_system),
             );
     }
@@ -155,6 +155,7 @@ fn handle_radial_menu_event_system(
     mut commands: Commands,
     mut ev_radial: EventReader<PropagateSelectionEvent>,
     mut ev_open: EventWriter<OpenMenuEvent>,
+    mut ev_insert: EventWriter<InsertGateEvent>,
     font: Res<FontAssets>,
     assets: Res<GateAssets>,
     mut ms: ResMut<MenuState>,
@@ -249,27 +250,27 @@ fn handle_radial_menu_event_system(
             },
             MenuStates::LogicGates => match ev.id {
                 1 => {
-                    Gate::and_gate_bs(&mut commands, ev.position, font.main.clone());
+                    ev_insert.send(InsertGateEvent::and(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 2 => {
-                    Gate::nand_gate_bs(&mut commands, ev.position, font.main.clone());
+                    ev_insert.send(InsertGateEvent::nand(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 3 => {
-                    Gate::or_gate_bs(&mut commands, ev.position, font.main.clone());
+                    ev_insert.send(InsertGateEvent::or(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 4 => {
-                    Gate::nor_gate_bs(&mut commands, ev.position, font.main.clone());
+                    ev_insert.send(InsertGateEvent::nor(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 5 => {
-                    Gate::not_gate_bs(&mut commands, ev.position, font.main.clone());
+                    ev_insert.send(InsertGateEvent::not(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 6 => {
-                    Gate::xor_gate_bs(&mut commands, ev.position, font.main.clone());
+                    ev_insert.send(InsertGateEvent::xor(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {
@@ -305,29 +306,19 @@ fn handle_radial_menu_event_system(
             },
             MenuStates::Inputs => match ev.id {
                 1 => {
-                    Gate::high_const(&mut commands, ev.position, font.main.clone());
+                    ev_insert.send(InsertGateEvent::high(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 2 => {
-                    Gate::low_const(&mut commands, ev.position, font.main.clone());
+                    ev_insert.send(InsertGateEvent::low(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 3 => {
-                    ToggleSwitch::new(
-                        &mut commands,
-                        Vec2::new(ev.position.x, ev.position.y),
-                        State::Low,
-                    );
+                    ev_insert.send(InsertGateEvent::toggle(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 4 => {
-                    Clk::spawn(
-                        &mut commands,
-                        Vec2::new(ev.position.x, ev.position.y),
-                        1.0,
-                        0.0,
-                        State::Low,
-                    );
+                    ev_insert.send(InsertGateEvent::clk(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {
@@ -363,11 +354,7 @@ fn handle_radial_menu_event_system(
             },
             MenuStates::Outputs => match ev.id {
                 1 => {
-                    LightBulb::spawn(
-                        &mut commands,
-                        Vec2::new(ev.position.x, ev.position.y),
-                        State::None,
-                    );
+                    ev_insert.send(InsertGateEvent::light(ev.position));
                     ms.0 = MenuStates::Idle;
                 }
                 _ => {

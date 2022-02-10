@@ -1,0 +1,183 @@
+(
+    time: "2022-02-03T18:02:51.231419653+01:00",
+    application: "Nodus - A logic gate simulator",
+    version: (
+        major: 0,
+        minor: 1,
+    ),
+    entities: [
+        (
+            id: 510,
+            name: "NAND Gate",
+            inputs: Some(2),
+            outputs: Some(1),
+            targets: Some(([
+                ({
+                    566: ([0]),
+                    529: ([1]),
+                }),
+            ])),
+            position: (
+                423.37244,
+                -130.24706,
+            ),
+            ntype: Nand,
+            state: None,
+        ),// [0]
+        (
+            id: 549,
+            name: "NAND Gate",
+            inputs: Some(2),
+            outputs: Some(1),
+            targets: Some(([
+                ({
+                    520: ([1]),
+                    538: ([2]),
+                }),
+            ])),
+            position: (
+                -415.38147,
+                -251.41112,
+            ),
+            ntype: Nand,
+            state: None,
+        ),// [1]
+        (
+            id: 520,
+            name: "NAND Gate",
+            inputs: Some(2),
+            outputs: Some(1),
+            targets: Some(([
+                ({
+                    502: ([0]),
+                }),
+            ])),
+            position: (
+                -425.73694,
+                292.8662,
+            ),
+            ntype: Nand,
+            state: None,
+        ),// [2]
+        (
+            id: 529,
+            name: "NAND Gate",
+            inputs: Some(2),
+            outputs: Some(1),
+            targets: Some(([
+                ({
+                    510: ([0]),
+                    570: ([0]),
+                }),
+            ])),
+            position: (
+                411.45056,
+                145.2295,
+            ),
+            ntype: Nand,
+            state: None,
+        ),// [3]
+        (
+            id: 502,
+            name: "NAND Gate",
+            inputs: Some(2),
+            outputs: Some(1),
+            targets: Some(([
+                ({
+                    520: ([0]),
+                    538: ([0]),
+                    529: ([0]),
+                }),
+            ])),
+            position: (
+                19.45055,
+                122.9756,
+            ),
+            ntype: Nand,
+            state: None,
+        ),// [4]
+        (
+            id: 538,
+            name: "NAND Gate",
+            inputs: Some(3),
+            outputs: Some(1),
+            targets: Some(([
+                ({
+                    549: ([1]),
+                    510: ([1]),
+                }),
+            ])),
+            position: (
+                16.614613,
+                -231.82127,
+            ),
+            ntype: Nand,
+            state: None,
+        ),// [5]
+        (
+            id: 558,
+            name: "Clock",
+            inputs: None,
+            outputs: Some(1),
+            targets: Some(([
+                ({
+                    502: ([1]),
+                    538: ([1]),
+                }),
+            ])),
+            position: (
+                -736.99866,
+                13.936539,
+            ),
+            ntype: Clock,
+            state: Some(Clock(
+                1,
+                0.016932108,
+                High,
+            )),
+        ),// [6]
+        (
+            id: 562,
+            name: "Toggle Switch",
+            inputs: Some(1),
+            outputs: Some(1),
+            targets: Some(([
+                ({
+                    549: ([0]),
+                }),
+            ])),
+            position: (
+                -731.9786,
+                -229.42064,
+            ),
+            ntype: ToggleSwitch,
+            state: Some(ToggleSwitch(Low)),
+        ),// [7]
+        (
+            id: 566,
+            name: "Light Bulb",
+            inputs: Some(1),
+            outputs: None,
+            targets: None,
+            position: (
+                697.32947,
+                -138.19627,
+            ),
+            ntype: LightBulb,
+            state: Some(LightBulb(High)),
+        ),// [8]
+        (
+            id: 570,
+            name: "Light Bulb",
+            inputs: Some(1),
+            outputs: None,
+            targets: None,
+            position: (
+                686.3373,
+                299.39746,
+            ),
+            ntype: LightBulb,
+            state: Some(LightBulb(Low)),
+        ),
+    ],
+)

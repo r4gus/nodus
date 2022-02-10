@@ -34,6 +34,7 @@ impl Plugin for LogicComponentSystem {
             .add_event::<DisconnectEvent>()
             .add_event::<SaveEvent>()
             .add_event::<LoadEvent>()
+            .add_event::<InsertGateEvent>()
             .add_plugin(GateMenuPlugin)
             .add_plugin(UndoPlugin)
             .insert_resource(LineResource {
@@ -74,6 +75,7 @@ impl Plugin for LogicComponentSystem {
                     .with_system(drag_gate_system.system())
                     .with_system(drag_connector_system.system().label("drag_conn_system"))
                     .with_system(connect_event_system.system().after("drag_conn_system"))
+                    .with_system(insert_gate_system.after("handle_rad_event"))
                     // Draw Line inserts a new bundle into an entity that might has been
                     // deleted by delete_line_system, i.e. we run it before any deletions
                     // to prevent an segfault.

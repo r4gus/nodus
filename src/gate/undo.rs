@@ -15,7 +15,6 @@ impl Plugin for UndoPlugin {
                 redo: Vec::new(),
             })
             .add_system(handle_undo_event_system)
-            .add_system(detect_insertions_system)
             // The removal of components is applied at the end of a stage.
             // The system that checks for the removal must run in a later stage.
             .add_system_to_stage(CoreStage::PostUpdate, detect_removal_system);
@@ -63,7 +62,6 @@ pub fn handle_undo_event_system(
                 if let Some(action) = stack.undo.pop() {
                     match action {
                         Action::Insert(e) => {
-                            eprintln!("fuck yeah");
                             match e.ntype {
                                 NodeType::And => {
                                     let _id = Gate::and_gate_bs_(
@@ -73,6 +71,8 @@ pub fn handle_undo_event_system(
                                         e.outputs.unwrap(),
                                         font.clone(),
                                     );
+
+                                    stack.redo.push(Action::Remove(_id));
                                 }
                                 NodeType::Nand => {
                                     let _id = Gate::nand_gate_bs_(
@@ -82,6 +82,7 @@ pub fn handle_undo_event_system(
                                         e.outputs.unwrap(),
                                         font.clone(),
                                     );
+                                    stack.redo.push(Action::Remove(_id));
                                 }
                                 NodeType::Or => {
                                     let _id = Gate::or_gate_bs_(
@@ -91,6 +92,7 @@ pub fn handle_undo_event_system(
                                         e.outputs.unwrap(),
                                         font.clone(),
                                     );
+                                    stack.redo.push(Action::Remove(_id));
                                 }
                                 NodeType::Nor => {
                                     let _id = Gate::nor_gate_bs_(
@@ -100,6 +102,7 @@ pub fn handle_undo_event_system(
                                         e.outputs.unwrap(),
                                         font.clone(),
                                     );
+                                    stack.redo.push(Action::Remove(_id));
                                 }
                                 NodeType::Xor => {
                                     let _id = Gate::xor_gate_bs_(
@@ -109,6 +112,7 @@ pub fn handle_undo_event_system(
                                         e.outputs.unwrap(),
                                         font.clone(),
                                     );
+                                    stack.redo.push(Action::Remove(_id));
                                 }
                                 NodeType::Xnor => {}
                                 NodeType::Not => {
@@ -119,30 +123,36 @@ pub fn handle_undo_event_system(
                                         e.outputs.unwrap(),
                                         font.clone(),
                                     );
+                                    stack.redo.push(Action::Remove(_id));
                                 }
                                 NodeType::HighConst => {
                                     let _id =
                                         Gate::high_const(&mut commands, e.position, font.clone());
+                                    stack.redo.push(Action::Remove(_id));
                                 }
                                 NodeType::LowConst => {
                                     let _id =
                                         Gate::low_const(&mut commands, e.position, font.clone());
+                                    stack.redo.push(Action::Remove(_id));
                                 }
                                 NodeType::ToggleSwitch => {
                                     if let Some(NodeState::ToggleSwitch(state)) = e.state {
                                         let _id =
                                             ToggleSwitch::new(&mut commands, e.position, state);
+                                        stack.redo.push(Action::Remove(_id));
                                     }
                                 }
                                 NodeType::Clock => {
                                     if let Some(NodeState::Clock(x1, x2, x3)) = e.state {
                                         let _id = Clk::spawn(&mut commands, e.position, x1, x2, x3);
+                                        stack.redo.push(Action::Remove(_id));
                                     }
                                 }
                                 NodeType::LightBulb => {
                                     if let Some(NodeState::LightBulb(state)) = e.state {
                                         let _id =
                                             LightBulb::spawn(&mut commands, e.position, state);
+                                        stack.redo.push(Action::Remove(_id));
                                     }
                                 }
                             }
@@ -209,6 +219,7 @@ pub fn handle_undo_event_system(
                                     e.outputs.unwrap(),
                                     font.clone(),
                                 );
+                                stack.undo.push(Action::Remove(_id));
                             }
                             NodeType::Nand => {
                                 let _id = Gate::nand_gate_bs_(
@@ -218,6 +229,7 @@ pub fn handle_undo_event_system(
                                     e.outputs.unwrap(),
                                     font.clone(),
                                 );
+                                stack.undo.push(Action::Remove(_id));
                             }
                             NodeType::Or => {
                                 let _id = Gate::or_gate_bs_(
@@ -227,6 +239,7 @@ pub fn handle_undo_event_system(
                                     e.outputs.unwrap(),
                                     font.clone(),
                                 );
+                                stack.undo.push(Action::Remove(_id));
                             }
                             NodeType::Nor => {
                                 let _id = Gate::nor_gate_bs_(
@@ -236,6 +249,7 @@ pub fn handle_undo_event_system(
                                     e.outputs.unwrap(),
                                     font.clone(),
                                 );
+                                stack.undo.push(Action::Remove(_id));
                             }
                             NodeType::Xor => {
                                 let _id = Gate::xor_gate_bs_(
@@ -245,6 +259,7 @@ pub fn handle_undo_event_system(
                                     e.outputs.unwrap(),
                                     font.clone(),
                                 );
+                                stack.undo.push(Action::Remove(_id));
                             }
                             NodeType::Xnor => {}
                             NodeType::Not => {
@@ -255,26 +270,32 @@ pub fn handle_undo_event_system(
                                     e.outputs.unwrap(),
                                     font.clone(),
                                 );
+                                stack.undo.push(Action::Remove(_id));
                             }
                             NodeType::HighConst => {
                                 let _id = Gate::high_const(&mut commands, e.position, font.clone());
+                                stack.undo.push(Action::Remove(_id));
                             }
                             NodeType::LowConst => {
                                 let _id = Gate::low_const(&mut commands, e.position, font.clone());
+                                stack.undo.push(Action::Remove(_id));
                             }
                             NodeType::ToggleSwitch => {
                                 if let Some(NodeState::ToggleSwitch(state)) = e.state {
                                     let _id = ToggleSwitch::new(&mut commands, e.position, state);
+                                    stack.undo.push(Action::Remove(_id));
                                 }
                             }
                             NodeType::Clock => {
                                 if let Some(NodeState::Clock(x1, x2, x3)) = e.state {
                                     let _id = Clk::spawn(&mut commands, e.position, x1, x2, x3);
+                                    stack.undo.push(Action::Remove(_id));
                                 }
                             }
                             NodeType::LightBulb => {
                                 if let Some(NodeState::LightBulb(state)) = e.state {
                                     let _id = LightBulb::spawn(&mut commands, e.position, state);
+                                    stack.undo.push(Action::Remove(_id));
                                 }
                             }
                         },
@@ -285,15 +306,6 @@ pub fn handle_undo_event_system(
         }
         eprintln!("undo: {}", stack.undo.len());
         eprintln!("redo: {}", stack.redo.len());
-    }
-}
-
-pub fn detect_insertions_system(
-    mut stack: ResMut<UndoStack>,
-    q_node: Query<Entity, Added<NodeType>>,
-) {
-    for entity in q_node.iter() {
-        stack.undo.push(Action::Remove(entity));
     }
 }
 
