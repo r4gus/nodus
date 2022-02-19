@@ -42,7 +42,7 @@ pub enum NodeState {
     LightBulb(State),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NodusComponent {
     pub id: Entity,
     pub name: String,

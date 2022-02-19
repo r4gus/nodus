@@ -50,12 +50,13 @@ pub fn delete_gate_system(
     input_keyboard: Res<Input<KeyCode>>,
     mut ev_disconnect: EventWriter<DisconnectEvent>,
     q_gate: Query<
-        (Entity, &Children),
+        (Entity),
         (
             With<Selected>,
             Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>,
         ),
     >,
+    children: Query<&Children>,
     q_connectors: Query<&Connections>,
     mut stack: ResMut<UndoStack>,
     q_node: Query<(
@@ -68,69 +69,21 @@ pub fn delete_gate_system(
         &Transform,
         &NodeType,
     )>,
+    q_line: Query<(Entity, &ConnectionLine)>,
+    q_parent: Query<&Parent>,
 ) {
     if input_keyboard.pressed(KeyCode::Delete) {
-        // Iterate over every selected gate and its children.
-        //let mut vundo = Vec::new();
-        for (entity, children) in q_gate.iter() {
-            // ----------------------------------- undo
-            if let Ok((e, n, ip, op, t, clk, tr, nt)) = q_node.get(entity) {
-                let i = if let Some(i) = ip {
-                    Some(i.len())
-                } else {
-                    None
-                };
-                let o = if let Some(o) = op {
-                    Some(o.len())
-                } else {
-                    None
-                };
-                let t = if let Some(t) = t {
-                    Some(t.clone())
-                } else {
-                    None
-                };
-
-                let state = match &nt {
-                    NodeType::ToggleSwitch => Some(NodeState::ToggleSwitch(op.unwrap()[0])),
-                    NodeType::Clock => {
-                        let clk = clk.unwrap();
-                        Some(NodeState::Clock(clk.0, clk.1, op.unwrap()[0]))
-                    }
-                    NodeType::LightBulb => Some(NodeState::LightBulb(ip.unwrap()[0])),
-                    _ => None,
-                };
-
-                let nc = NodusComponent {
-                    id: e,
-                    name: n.0.to_string(),
-                    inputs: i,
-                    outputs: o,
-                    targets: t,
-                    position: Vec2::new(tr.translation.x, tr.translation.y),
-                    ntype: nt.clone(),
-                    state: state,
-                };
-
-                stack.undo.push(Action::Insert(nc));
-            }
-            // ----------------------------------- undo
-
-            // Get the connections for each child
-            // and disconnect all.
-            for &child in children.iter() {
-                if let Ok(conns) = q_connectors.get(child) {
-                    for &connection in conns.iter() {
-                        ev_disconnect.send(DisconnectEvent {
-                            connection,
-                            in_parent: Some(entity),
-                        });
-                    }
-                }
-            }
-
-            // Delete the gate itself
-            commands.entity(entity).despawn_recursive();
+        if let Some(ncs) = crate::gate::undo::remove(
+            &mut commands, 
+            q_gate.iter().map(|e| e).collect(), 
+            &q_node, 
+            &children, 
+            &q_connectors, 
+            &q_line,
+            &q_parent,
+            &mut ev_disconnect
+        ) {
+            stack.undo.push(Action::Insert(ncs));
         }
     }
 }
@@ -270,7 +223,7 @@ pub fn insert_gate_system(
         };
 
         if let Some(entity) = entity {
-            stack.undo.push(Action::Remove(entity));
+            stack.undo.push(Action::Remove(vec![entity]));
         }
     }
 }

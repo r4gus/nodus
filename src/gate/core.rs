@@ -369,7 +369,7 @@ impl Connections {
 pub struct Free;
 
 /// Associate a index with a entity.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConnInfo {
     pub entity: Entity,
     pub index: usize,
