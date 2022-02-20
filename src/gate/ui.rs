@@ -65,10 +65,21 @@ pub fn load_gui_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetS
     egui_context.set_egui_texture(NODUS_LOGO_ID, texture_handle);
 }
 
+/// Reset input if cursor hovers over egui window.
+/// This system must run before any "main" bevy system.
+pub fn ui_reset_input(
+    egui_context: ResMut<EguiContext>,
+    mut mb: ResMut<Input<MouseButton>>,
+) {
+    if egui_context.ctx().wants_pointer_input() {
+        println!("reset");
+        mb.reset(MouseButton::Left);
+    }
+}
+
 pub fn ui_scroll_system(
     egui_context: ResMut<EguiContext>,
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
-    mut mb: ResMut<Input<MouseButton>>,
 ) {
     if let Ok(mut transform) = q_camera.get_single_mut() {
         let res = egui::Area::new("zoom_area")
@@ -81,9 +92,7 @@ pub fn ui_scroll_system(
                             .strong()
                             .color(egui::Color32::BLACK),
                     );
-                    if ui.add(egui::Slider::new(&mut x, 1.0..=5.0).show_value(false)).hovered() {
-                        mb.reset(MouseButton::Left);
-                    }
+                    ui.add(egui::Slider::new(&mut x, 1.0..=5.0).show_value(false));
                     ui.label(
                         egui::RichText::new("\u{1F50E}")
                             .strong()
@@ -92,10 +101,6 @@ pub fn ui_scroll_system(
                 });
                 transform.scale = Vec3::new(x, x, x);
             }).response;
-
-        if res.hovered() {
-            mb.reset(MouseButton::Left);
-        }    
     }
 }
 
@@ -349,10 +354,9 @@ pub fn ui_node_info_system(
     egui_context: ResMut<EguiContext>,
     mut q_gate: Query<(Entity, &Name, Option<&Gate>, Option<&mut Clk>), With<Selected>>,
     mut ev_change: EventWriter<ChangeInput>,
-    mut mb: ResMut<Input<MouseButton>>,
 ) {
     if let Ok((entity, name, gate, mut clk)) = q_gate.get_single_mut() {
-        if let Some(response) = egui::Window::new(&name.0)
+        egui::Window::new(&name.0)
             .title_bar(false)
             .anchor(egui::Align2::RIGHT_BOTTOM, egui::Vec2::new(-5., -5.))
             .resizable(false)
@@ -361,58 +365,42 @@ pub fn ui_node_info_system(
 
                 if let Some(gate) = gate {
                     if gate.in_range.min != gate.in_range.max {
-                        if ui
-                            .horizontal(|ui| {
-                                ui.label("Input Count: ");
-                                if ui.button("➖").clicked() {
-                                    if gate.inputs > gate.in_range.min {
-                                        ev_change.send(ChangeInput {
-                                            gate: entity,
-                                            to: gate.inputs - 1,
-                                        });
-                                    }
+                        ui.horizontal(|ui| {
+                            ui.label("Input Count: ");
+                            if ui.button("➖").clicked() {
+                                if gate.inputs > gate.in_range.min {
+                                    ev_change.send(ChangeInput {
+                                        gate: entity,
+                                        to: gate.inputs - 1,
+                                    });
                                 }
-                                ui.label(format!("{}", gate.inputs));
-                                if ui.button("➕").clicked() {
-                                    if gate.inputs < gate.in_range.max {
-                                        ev_change.send(ChangeInput {
-                                            gate: entity,
-                                            to: gate.inputs + 1,
-                                        });
-                                    }
+                            }
+                            ui.label(format!("{}", gate.inputs));
+                            if ui.button("➕").clicked() {
+                                if gate.inputs < gate.in_range.max {
+                                    ev_change.send(ChangeInput {
+                                        gate: entity,
+                                        to: gate.inputs + 1,
+                                    });
                                 }
-                            })
-                            .response
-                            .hovered()
-                        {
-                            mb.reset(MouseButton::Left);
-                        }
+                            }
+                        });
                     }
                 }
 
                 if let Some(ref mut clk) = clk {
                     let mut clk_f32 = clk.0 * 1000.;
-                    if ui
-                        .horizontal(|ui| {
-                            ui.label("Signal Duration: ");
-                            ui.add(
-                                egui::DragValue::new(&mut clk_f32)
-                                    .speed(1.0)
-                                    .clamp_range(std::ops::RangeInclusive::new(250.0, 600000.0)),
-                            );
-                        })
-                        .response
-                        .hovered()
-                    {
-                        mb.reset(MouseButton::Left);
-                    }
+                    ui.horizontal(|ui| {
+                        ui.label("Signal Duration: ");
+                        ui.add(
+                            egui::DragValue::new(&mut clk_f32)
+                                .speed(1.0)
+                                .clamp_range(std::ops::RangeInclusive::new(250.0, 600000.0)),
+                        );
+                    });
+
                     clk.0 = clk_f32 / 1000.;
                 }
-            })
-        {
-            if response.response.hovered() {
-                mb.reset(MouseButton::Left);
-            }
-        }
+            });
     }
 }
