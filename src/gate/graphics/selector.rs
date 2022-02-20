@@ -69,7 +69,7 @@ pub fn selector_system(
 
             commands.entity(entity).despawn_recursive();
         }
-    } else {
+    } else if !q_select.is_empty() && mb.pressed(MouseButton::Left) {
         if let Ok((_, mut path, sb)) = q_select.get_single_mut() {
             let w = mw.x - sb.start.x;
             let h = -(mw.y - sb.start.y);
@@ -80,6 +80,10 @@ pub fn selector_system(
             };
 
             *path = ShapePath::build_as(s);
+        }
+    } else {
+        for (entity, _, _) in q_select.iter() {
+            commands.entity(entity).despawn_recursive();
         }
     }
 }

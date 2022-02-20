@@ -68,9 +68,10 @@ pub fn load_gui_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetS
 pub fn ui_scroll_system(
     egui_context: ResMut<EguiContext>,
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
+    mut mb: ResMut<Input<MouseButton>>,
 ) {
     if let Ok(mut transform) = q_camera.get_single_mut() {
-        egui::Area::new("zoom_area")
+        let res = egui::Area::new("zoom_area")
             .anchor(egui::Align2::LEFT_BOTTOM, egui::Vec2::new(5., -5.))
             .show(egui_context.ctx(), |ui| {
                 let mut x = transform.scale.x;
@@ -80,7 +81,9 @@ pub fn ui_scroll_system(
                             .strong()
                             .color(egui::Color32::BLACK),
                     );
-                    ui.add(egui::Slider::new(&mut x, 1.0..=5.0).show_value(false));
+                    if ui.add(egui::Slider::new(&mut x, 1.0..=5.0).show_value(false)).hovered() {
+                        mb.reset(MouseButton::Left);
+                    }
                     ui.label(
                         egui::RichText::new("\u{1F50E}")
                             .strong()
@@ -88,7 +91,11 @@ pub fn ui_scroll_system(
                     );
                 });
                 transform.scale = Vec3::new(x, x, x);
-            });
+            }).response;
+
+        if res.hovered() {
+            mb.reset(MouseButton::Left);
+        }    
     }
 }
 
