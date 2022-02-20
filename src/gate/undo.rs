@@ -249,6 +249,15 @@ fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
             _ => { }
         }
     }
+
+    for mut action in &mut stack.redo {
+        match action {
+            Action::Insert(ncs) => {
+                replace_entity_id_(old, new, &mut ncs.1);
+            },
+            _ => { }
+        }
+    }
 }
 
 fn insert(

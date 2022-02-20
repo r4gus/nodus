@@ -222,6 +222,7 @@ pub fn ui_top_panel_system(
     mut r: ResMut<GuiMenu>,
     curr_open: Res<CurrentlyOpen>,
     mut mode: ResMut<InteractionMode>,
+    stack: Res<UndoStack>,
 ) {
     egui::TopBottomPanel::top("side").show(egui_context.ctx(), |ui| {
         ui.columns(2, |columns| {
@@ -311,7 +312,10 @@ pub fn ui_top_panel_system(
                 }
 
                 if ui
-                    .add(egui::Button::new("redo"))
+                    .add_enabled(
+                        stack.redo.len() > 0,
+                        egui::Button::new("\u{21bb}")
+                    )
                     .on_hover_text("Redo last action")
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                     .clicked()
@@ -319,7 +323,10 @@ pub fn ui_top_panel_system(
                     ev_undo.send(UndoEvent::Redo);
                 }
                 if ui
-                    .add(egui::Button::new("undo"))
+                    .add_enabled(
+                        stack.undo.len() > 0,
+                        egui::Button::new("\u{21ba}")
+                    )
                     .on_hover_text("Undo last action")
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                     .clicked()

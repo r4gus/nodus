@@ -84,6 +84,7 @@ pub fn delete_gate_system(
             &mut ev_disconnect
         ) {
             stack.undo.push(Action::Insert(ncs));
+            stack.redo.clear();
         }
     }
 }
@@ -224,6 +225,7 @@ pub fn insert_gate_system(
 
         if let Some(entity) = entity {
             stack.undo.push(Action::Remove(vec![entity]));
+            stack.redo.clear();
         }
     }
 }
