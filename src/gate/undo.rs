@@ -11,13 +11,15 @@ pub struct UndoPlugin;
 impl Plugin for UndoPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<UndoEvent>()
+            .add_event::<ReconnectGates>()
             .insert_resource(UndoStack {
                 undo: Vec::new(),
                 redo: Vec::new(),
             })
+            .add_system(reconnect_gates_event_system.before("handle_undo"))
             // Not pretty but this system must run after the disconnect
             // system to prevent program crashes due to data races.
-            .add_system(handle_undo_event_system.after("disconnect"));
+            .add_system(handle_undo_event_system.label("handle_undo").after("disconnect"));
     }
 }
 
@@ -59,6 +61,7 @@ pub fn handle_undo_event_system(
     q_line: Query<(Entity, &ConnectionLine)>,
     q_parent: Query<&Parent>,
     mut ev_disconnect: EventWriter<DisconnectEvent>,
+    mut ev_conn: EventWriter<ReconnectGates>,
 ) {
     let font: Handle<Font> = server.load("fonts/hack.bold.ttf");
 
@@ -87,7 +90,7 @@ pub fn handle_undo_event_system(
                                         );
                                     }
                                 }
-
+                                ev_conn.send(ReconnectGates(e.1));
                                 stack.redo.push(Action::Remove(entities));
                             }
                         }
@@ -132,6 +135,7 @@ pub fn handle_undo_event_system(
                                     }
                                 }
 
+                                ev_conn.send(ReconnectGates(e.1));
                                 stack.undo.push(Action::Remove(entities));
                             }
                         },
@@ -147,6 +151,45 @@ pub fn handle_undo_event_system(
                                 &mut ev_disconnect
                             ) {
                                 stack.undo.push(Action::Insert(nc));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub struct ReconnectGates(pub HashSet<(ConnInfo, ConnInfo)>);
+
+fn reconnect_gates_event_system(
+    mut ev_conn: EventReader<ReconnectGates>,
+    mut cev: EventWriter<ConnectEvent>,
+    q_children: Query<&Children>,
+    q_conn: Query<(Entity, &Connector)>,
+) {
+    for conns in ev_conn.iter() { 
+        'rg_loop: for (lhs, rhs) in conns.0.iter() {
+            if let Ok(lhs_children) = q_children.get(lhs.entity) {
+                if let Ok(rhs_children) = q_children.get(rhs.entity) {
+                    for &lhs_child in lhs_children.iter() {
+                        if let Ok((lhs_e, lhs_con)) = q_conn.get(lhs_child) {
+                            if lhs_con.index == lhs.index &&
+                                lhs_con.ctype == ConnectorType::Out {
+                                for &rhs_child in rhs_children.iter() {
+                                    if let Ok((rhs_e, rhs_con)) = q_conn.get(rhs_child) {
+                                        if rhs_con.index == rhs.index &&
+                                            rhs_con.ctype == ConnectorType::In {
+                                            cev.send(ConnectEvent {
+                                                output: lhs_e,
+                                                output_index: lhs.index,
+                                                input: rhs_e,
+                                                input_index: rhs.index,
+                                            });
+                                            continue 'rg_loop;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
