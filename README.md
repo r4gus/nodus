@@ -57,7 +57,7 @@ cargo run
 
 ### Known Issues
 
-Here some tips to solve known issues.
+Here are some tips to solve known issues.
 
 #### Ubuntu linker error
 
@@ -72,7 +72,7 @@ If you get the following link error in Ubunut/ Debian,
 
 try to install `libxcb-shape0-dev` and `libxcb-xfixes0-dev` separately, i.e. `sudo apt install libxcb-shape0-dev libxcb-xfixes0-dev`.
 
-#### AMD driver error
+#### AMD driver issue
 
 If you get the following runtime error,
 
