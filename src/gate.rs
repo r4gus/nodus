@@ -53,11 +53,17 @@ impl Plugin for LogicComponentSystem {
                 SystemSet::on_update(GameState::InGame)
                     .before("interaction2d")
                     .label("level3_node_set")
-                    .with_system(ui_node_info_system)
-                    .with_system(ui_top_panel_system)
-                    .with_system(ui_scroll_system)
-                    .with_system(ui_gui_about)
-                    .with_system(ui_reset_input)
+                    .with_system(ui_node_info_system.label("ui_info"))
+                    .with_system(ui_top_panel_system.label("ui_panel"))
+                    .with_system(ui_scroll_system.label("ui_scroll"))
+                    .with_system(ui_gui_about.label("ui_about"))
+                    .with_system(
+                        ui_reset_input
+                            .after("ui_info")
+                            .after("ui_panel")
+                            .after("ui_scroll")
+                            .after("ui_about")
+                    )
             )
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
