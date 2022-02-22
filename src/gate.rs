@@ -52,10 +52,11 @@ impl Plugin for LogicComponentSystem {
                 SystemSet::on_update(GameState::InGame)
                     .before("interaction2d")
                     .label("level3_node_set")
-                    .with_system(ui_node_info_system.system())
+                    .with_system(ui_node_info_system)
                     .with_system(ui_top_panel_system)
                     .with_system(ui_scroll_system)
-                    .with_system(ui_gui_about),
+                    .with_system(ui_gui_about)
+                    .with_system(ui_reset_input)
             )
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)

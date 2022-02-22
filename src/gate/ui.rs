@@ -72,7 +72,6 @@ pub fn ui_reset_input(
     mut mb: ResMut<Input<MouseButton>>,
 ) {
     if egui_context.ctx().wants_pointer_input() {
-        println!("reset");
         mb.reset(MouseButton::Left);
     }
 }

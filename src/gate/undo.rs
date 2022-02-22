@@ -238,6 +238,14 @@ fn replace_entity_id_(old: Entity, new: Entity, con: &mut HashSet<(ConnInfo, Con
     }
 }
 
+fn replace_entity_id2_(old: Entity, new: Entity, v: &mut Vec<Entity>) {
+    for i in 0..v.len() {
+        if v[i] == old {
+            v[i] = new;
+        }
+    }
+}
+
 /// Replace the given `old` entity id with the `new` entity id within the
 /// target maps of all NodusComponent's of the undo/redo stack.
 fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
@@ -246,7 +254,9 @@ fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
             Action::Insert(ncs) => {
                 replace_entity_id_(old, new, &mut ncs.1);
             },
-            _ => { }
+            Action::Remove(ref mut es) => { 
+                replace_entity_id2_(old, new, es);
+            }
         }
     }
 
@@ -255,7 +265,9 @@ fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
             Action::Insert(ncs) => {
                 replace_entity_id_(old, new, &mut ncs.1);
             },
-            _ => { }
+            Action::Remove(ref mut es) => { 
+                replace_entity_id2_(old, new, es);
+            }
         }
     }
 }
