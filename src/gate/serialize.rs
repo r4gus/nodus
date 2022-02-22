@@ -189,6 +189,7 @@ pub fn link_gates_system(
                                                 output_index: i,
                                                 input: id,
                                                 input_index: j,
+                                                signal_success: false,
                                             });
                                             break;
                                         }

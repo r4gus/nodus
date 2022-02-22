@@ -122,6 +122,7 @@ pub fn drag_connector_system(
                                 output_index: drop_connector.index,
                                 input: entity,
                                 input_index: connector.index,
+                                signal_success: true,
                             });
                         }
                         ConnectorType::Out => {
@@ -130,6 +131,7 @@ pub fn drag_connector_system(
                                 output_index: connector.index,
                                 input: drop_target,
                                 input_index: drop_connector.index,
+                                signal_success: true,
                             });
                         }
                     }

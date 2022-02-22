@@ -19,7 +19,8 @@ impl Plugin for UndoPlugin {
             .add_system(reconnect_gates_event_system.before("handle_undo"))
             // Not pretty but this system must run after the disconnect
             // system to prevent program crashes due to data races.
-            .add_system(handle_undo_event_system.label("handle_undo").after("disconnect"));
+            .add_system(handle_undo_event_system.label("handle_undo").after("disconnect"))
+            .add_system(listen_for_new_connections_system);
     }
 }
 
@@ -33,6 +34,8 @@ pub enum UndoEvent {
 pub enum Action {
     Insert((Vec<NodusComponent>, HashSet<(ConnInfo, ConnInfo)>)),
     Remove(Vec<Entity>),
+    InsertConnection(Entity),
+    RemoveConnection(Entity),
 }
 
 #[derive(Debug, Clone)]
@@ -108,6 +111,13 @@ pub fn handle_undo_event_system(
                                 stack.redo.push(Action::Insert(nc));
                             }
                         }
+                        Action::RemoveConnection(c) => {
+                            ev_disconnect.send(DisconnectEvent {
+                                connection: c,
+                                in_parent: None,
+                            });
+                        }
+                        _ => { }
                     }
                 }
             }
@@ -152,7 +162,14 @@ pub fn handle_undo_event_system(
                             ) {
                                 stack.undo.push(Action::Insert(nc));
                             }
-                        }
+                        },
+                        Action::RemoveConnection(c) => {
+                            ev_disconnect.send(DisconnectEvent {
+                                connection: c,
+                                in_parent: None,
+                            });
+                        },
+                        _ => { }
                     }
                 }
             }
@@ -185,6 +202,7 @@ fn reconnect_gates_event_system(
                                                 output_index: lhs.index,
                                                 input: rhs_e,
                                                 input_index: rhs.index,
+                                                signal_success: false,
                                             });
                                             continue 'rg_loop;
                                         }
@@ -256,7 +274,8 @@ fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
             },
             Action::Remove(ref mut es) => { 
                 replace_entity_id2_(old, new, es);
-            }
+            },
+            _ => { }
         }
     }
 
@@ -267,7 +286,8 @@ fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
             },
             Action::Remove(ref mut es) => { 
                 replace_entity_id2_(old, new, es);
-            }
+            },
+            _ => { }
         }
     }
 }
@@ -482,4 +502,14 @@ pub fn remove(
 
     if res.len() > 0 { Some((res, con)) }
     else { None }
+}
+
+fn listen_for_new_connections_system(
+    mut ev_est: EventReader<NewConnectionEstablishedEvent>,
+    mut stack: ResMut<UndoStack>,
+) {
+    for ev in ev_est.iter() {
+        stack.undo.push(Action::RemoveConnection(ev.id));
+        stack.redo.clear();
+    }
 }

@@ -35,6 +35,7 @@ impl Plugin for LogicComponentSystem {
             .add_event::<SaveEvent>()
             .add_event::<LoadEvent>()
             .add_event::<InsertGateEvent>()
+            .add_event::<NewConnectionEstablishedEvent>()
             .add_plugin(GateMenuPlugin)
             .add_plugin(UndoPlugin)
             .insert_resource(LineResource {

@@ -474,6 +474,14 @@ pub struct ConnectEvent {
     pub output_index: usize,
     pub input: Entity,
     pub input_index: usize,
+    pub signal_success: bool, // Should signal success via NewConnectionEstablishedEvent.
+}
+
+/// A new connection has been established maybe somebody
+/// wants to know.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NewConnectionEstablishedEvent {
+    pub id: Entity,
 }
 
 /// Handle incomming connection events.
@@ -483,6 +491,7 @@ pub struct ConnectEvent {
 pub fn connect_event_system(
     mut commands: Commands,
     mut ev_connect: EventReader<ConnectEvent>,
+    mut ev_est: EventWriter<NewConnectionEstablishedEvent>,
     mut q_conns: Query<(&Parent, &mut Connections), ()>,
     mut q_parent: Query<&mut Targets>,
 ) {
@@ -530,6 +539,11 @@ pub fn connect_event_system(
                     .or_insert(TIndex::from(Vec::new()))
                     .push(ev.input_index);
             }
+        }
+        
+        // Hey everybody, a new connection has been established!
+        if ev.signal_success {
+            ev_est.send(NewConnectionEstablishedEvent { id: line });
         }
     }
 }
