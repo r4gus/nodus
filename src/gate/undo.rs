@@ -221,7 +221,6 @@ fn replace_entity_id_(old: Entity, new: Entity, con: &mut HashSet<(ConnInfo, Con
     let mut tmp = Vec::new();
 
     for mut t in con.iter() {
-        eprintln!("foo");
         if t.0.entity == old && t.1.entity != old {
             tmp.push((
                 t.clone(),
@@ -252,7 +251,6 @@ fn replace_entity_id_(old: Entity, new: Entity, con: &mut HashSet<(ConnInfo, Con
     for (o, n) in tmp.drain(..) {
         con.remove(&o);
         con.insert(n);
-        eprintln!("replace");
     }
 }
 
@@ -461,6 +459,7 @@ pub fn remove(
                     outputs: o,
                     targets: t,
                     position: Vec2::new(tr.translation.x, tr.translation.y),
+                    rotation: Some(tr.rotation),
                     ntype: nt.clone(),
                     state: state,
             };

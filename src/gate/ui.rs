@@ -325,7 +325,7 @@ pub fn ui_top_panel_system(
                 if ui
                     .add_enabled(
                         stack.redo.len() > 0,
-                        egui::Button::new("\u{21bb}")
+                        egui::Button::new("\u{2BAB}")
                     )
                     .on_hover_text("Redo last action")
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -336,7 +336,7 @@ pub fn ui_top_panel_system(
                 if ui
                     .add_enabled(
                         stack.undo.len() > 0,
-                        egui::Button::new("\u{21ba}")
+                        egui::Button::new("\u{2BAA}")
                     )
                     .on_hover_text("Undo last action")
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -351,10 +351,10 @@ pub fn ui_top_panel_system(
 
 pub fn ui_node_info_system(
     egui_context: ResMut<EguiContext>,
-    mut q_gate: Query<(Entity, &Name, Option<&Gate>, Option<&mut Clk>), With<Selected>>,
+    mut q_gate: Query<(Entity, &Name, &mut Transform, Option<&Gate>, Option<&mut Clk>), With<Selected>>,
     mut ev_change: EventWriter<ChangeInput>,
 ) {
-    if let Ok((entity, name, gate, mut clk)) = q_gate.get_single_mut() {
+    if let Ok((entity, name, mut trans, gate, mut clk)) = q_gate.get_single_mut() {
         egui::Window::new(&name.0)
             .title_bar(false)
             .anchor(egui::Align2::RIGHT_BOTTOM, egui::Vec2::new(-5., -5.))
@@ -400,6 +400,17 @@ pub fn ui_node_info_system(
 
                     clk.0 = clk_f32 / 1000.;
                 }
+
+                ui.horizontal(|ui| {
+                    ui.label("Rotate: ");
+                    if ui.button("\u{27f2}").clicked() {
+                        trans.rotate(Quat::from_rotation_z(std::f32::consts::PI / 2.0));
+
+                    }
+                    if ui.button("\u{27f3}").clicked() {
+                        trans.rotate(Quat::from_rotation_z(-std::f32::consts::PI / 2.0));
+                    }
+                });
             });
     }
 }

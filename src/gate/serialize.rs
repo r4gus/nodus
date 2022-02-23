@@ -50,6 +50,7 @@ pub struct NodusComponent {
     pub outputs: Option<usize>,
     pub targets: Option<Targets>,
     pub position: Vec2,
+    pub rotation: Option<Quat>,
     pub ntype: NodeType,
     pub state: Option<NodeState>,
 }
@@ -116,6 +117,7 @@ pub fn save_event_system(
                 outputs: o,
                 targets: t,
                 position: Vec2::new(tr.translation.x, tr.translation.y),
+                rotation: Some(tr.rotation),
                 ntype: nt.clone(),
                 state: state,
             };
@@ -226,94 +228,87 @@ pub fn load_event_system(
 
             if let Ok(save) = save {
                 for e in &save.entities {
-                    match e.ntype {
+                    let id = match e.ntype {
                         NodeType::And => {
-                            let id = Gate::and_gate_bs_(
+                            Some(Gate::and_gate_bs_(
                                 &mut commands,
                                 e.position,
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
-                            );
-                            id_map.insert(e.id, id);
+                            ))
                         }
                         NodeType::Nand => {
-                            let id = Gate::nand_gate_bs_(
+                            Some(Gate::nand_gate_bs_(
                                 &mut commands,
                                 e.position,
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
-                            );
-                            id_map.insert(e.id, id);
+                            ))
                         }
                         NodeType::Or => {
-                            let id = Gate::or_gate_bs_(
+                            Some(Gate::or_gate_bs_(
                                 &mut commands,
                                 e.position,
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
-                            );
-                            id_map.insert(e.id, id);
+                            ))
                         }
                         NodeType::Nor => {
-                            let id = Gate::nor_gate_bs_(
+                            Some(Gate::nor_gate_bs_(
                                 &mut commands,
                                 e.position,
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
-                            );
-                            id_map.insert(e.id, id);
+                            ))
                         }
                         NodeType::Xor => {
-                            let id = Gate::xor_gate_bs_(
+                            Some(Gate::xor_gate_bs_(
                                 &mut commands,
                                 e.position,
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
-                            );
-                            id_map.insert(e.id, id);
+                            ))
                         }
-                        NodeType::Xnor => {}
+                        NodeType::Xnor => { None }
                         NodeType::Not => {
-                            let id = Gate::not_gate_bs_(
+                            Some(Gate::not_gate_bs_(
                                 &mut commands,
                                 e.position,
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
-                            );
-                            id_map.insert(e.id, id);
+                            ))
                         }
                         NodeType::HighConst => {
-                            let id = Gate::high_const(&mut commands, e.position, font.main.clone());
-                            id_map.insert(e.id, id);
+                            Some(Gate::high_const(&mut commands, e.position, font.main.clone()))
                         }
                         NodeType::LowConst => {
-                            let id = Gate::low_const(&mut commands, e.position, font.main.clone());
-                            id_map.insert(e.id, id);
+                            Some(Gate::low_const(&mut commands, e.position, font.main.clone()))
                         }
                         NodeType::ToggleSwitch => {
                             if let Some(NodeState::ToggleSwitch(state)) = e.state {
-                                let id = ToggleSwitch::new(&mut commands, e.position, state);
-                                id_map.insert(e.id, id);
-                            }
+                                Some(ToggleSwitch::new(&mut commands, e.position, state))
+                            } else { None }
                         }
                         NodeType::Clock => {
                             if let Some(NodeState::Clock(x1, x2, x3)) = e.state {
-                                let id = Clk::spawn(&mut commands, e.position, x1, x2, x3);
-                                id_map.insert(e.id, id);
-                            }
+                                Some(Clk::spawn(&mut commands, e.position, x1, x2, x3))
+                            } else { None }
                         }
                         NodeType::LightBulb => {
                             if let Some(NodeState::LightBulb(state)) = e.state {
-                                let id = LightBulb::spawn(&mut commands, e.position, state);
-                                id_map.insert(e.id, id);
-                            }
+                                Some(LightBulb::spawn(&mut commands, e.position, state))
+                            } else { None }
                         }
+                    };
+
+                    if let Some(id) = id {
+                        id_map.insert(e.id, id);
                     }
                 }
 
