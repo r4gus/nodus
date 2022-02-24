@@ -50,7 +50,7 @@ pub fn delete_gate_system(
     input_keyboard: Res<Input<KeyCode>>,
     mut ev_disconnect: EventWriter<DisconnectEvent>,
     q_gate: Query<
-        (Entity),
+        Entity,
         (
             With<Selected>,
             Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>,
@@ -220,7 +220,6 @@ pub fn insert_gate_system(
             NodeType::LightBulb => {
                 Some(LightBulb::spawn(&mut commands, ev.position, Quat::IDENTITY, State::None))
             },
-            _ => { None }
         };
 
         if let Some(entity) = entity {

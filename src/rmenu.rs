@@ -1,15 +1,10 @@
 use crate::radial_menu::{OpenMenuEvent, PropagateSelectionEvent, UpdateCursorPositionEvent};
-use crate::{FontAssets, GameState};
+use crate::{GameState};
 use bevy::prelude::*;
 use crate::gate::systems::InsertGateEvent;
 use bevy_asset_loader::AssetCollection;
 
 use nodus::world2d::camera2d::MouseWorldPos;
-
-use crate::gate::{
-    core::{State, *},
-    graphics::{clk::*, light_bulb::*, toggle_switch::*},
-};
 
 pub struct GateMenuPlugin;
 
@@ -152,11 +147,9 @@ fn update_radial_menu_system(
 }
 
 fn handle_radial_menu_event_system(
-    mut commands: Commands,
     mut ev_radial: EventReader<PropagateSelectionEvent>,
     mut ev_open: EventWriter<OpenMenuEvent>,
     mut ev_insert: EventWriter<InsertGateEvent>,
-    font: Res<FontAssets>,
     assets: Res<GateAssets>,
     mut ms: ResMut<MenuState>,
 ) {

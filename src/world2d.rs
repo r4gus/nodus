@@ -198,7 +198,7 @@ pub mod interaction2d {
     pub struct Interactable {
         /// The bounding box defines the area where the mouse
         /// can interact with the entity.
-        bounding_box: (Vec2, Vec2),
+        bounding_box: (Vec2, Vec2, Vec2, Vec2, Vec2),
         /// The group this interactable entity belongs to. This
         /// can be a item, enemy, ... or just use one group for
         /// everything.
@@ -218,9 +218,21 @@ pub mod interaction2d {
         pub fn new(position: Vec2, dimensions: Vec2, group: u32) -> Self {
             Self {
                 bounding_box: (
-                    Vec2::new(
+                    Vec2::new( // upper left
                         position.x - dimensions.x / 2.,
                         position.y - dimensions.y / 2.,
+                    ),
+                    Vec2::new( // upper right
+                        position.x + dimensions.x / 2.,
+                        position.y - dimensions.y / 2.,
+                    ),
+                    Vec2::new( // lower left
+                        position.x - dimensions.x / 2.,
+                        position.y + dimensions.y / 2.,
+                    ),
+                    Vec2::new( // lower right
+                        position.x + dimensions.x / 2.,
+                        position.y + dimensions.y / 2.,
                     ),
                     dimensions,
                 ),
@@ -230,14 +242,12 @@ pub mod interaction2d {
 
         pub fn update_size(&mut self, x: f32, y: f32, width: f32, height: f32) {
             self.bounding_box.0 = Vec2::new(x - width / 2., y - height / 2.);
-            self.bounding_box.1 = Vec2::new(width, height);
+            self.bounding_box.1 = Vec2::new(x + width / 2., y - height / 2.);
+            self.bounding_box.2 = Vec2::new(x - width / 2., y + height / 2.);
+            self.bounding_box.3 = Vec2::new(x + width / 2., y + height / 2.);
+            self.bounding_box.4 = Vec2::new(width, height);
         }
 
-        /// Update the position of the bounding box within the world.
-        pub fn update_pos(&mut self, x: f32, y: f32) {
-            self.bounding_box.0.x = x;
-            self.bounding_box.0.y = y;
-        }
     }
 
     /// Marker component to indicate that the mouse
@@ -279,17 +289,62 @@ pub mod interaction2d {
         q_interact: Query<(Entity, &Interactable, &GlobalTransform)>,
     ) {
         for (entity, interactable, transform) in q_interact.iter() {
-            if mw.x >= transform.translation.x + interactable.bounding_box.0.x
-                && mw.x
-                    <= transform.translation.x
-                        + interactable.bounding_box.0.x
-                        + interactable.bounding_box.1.x
-                && mw.y >= transform.translation.y + interactable.bounding_box.0.y
-                && mw.y
-                    <= transform.translation.y
-                        + interactable.bounding_box.0.y
-                        + interactable.bounding_box.1.y
+            let a = transform.rotation.to_axis_angle().1;
+
+            // Rotate each point around the origin
+            let mut p1 = Vec2::new(
+                interactable.bounding_box.0.x * a.cos() - 
+                interactable.bounding_box.0.y * a.sin(),
+                interactable.bounding_box.0.x * a.sin() - 
+                interactable.bounding_box.0.y * a.cos(),
+            );
+            let mut p2 = Vec2::new(
+                interactable.bounding_box.1.x * a.cos() - 
+                interactable.bounding_box.1.y * a.sin(),
+                interactable.bounding_box.1.x * a.sin() - 
+                interactable.bounding_box.1.y * a.cos(),
+            );
+            let mut p3 = Vec2::new(
+                interactable.bounding_box.2.x * a.cos() - 
+                interactable.bounding_box.2.y * a.sin(),
+                interactable.bounding_box.2.x * a.sin() - 
+                interactable.bounding_box.2.y * a.cos(),
+            );
+            let mut p4 = Vec2::new(
+                interactable.bounding_box.3.x * a.cos() - 
+                interactable.bounding_box.3.y * a.sin(),
+                interactable.bounding_box.3.x * a.sin() - 
+                interactable.bounding_box.3.y * a.cos(),
+            );
+            
+            // Then apply the actual offset to each point
+            p1.x += transform.translation.x;
+            p1.y += transform.translation.y;
+            p2.x += transform.translation.x;
+            p2.y += transform.translation.y;
+            p3.x += transform.translation.x;
+            p3.y += transform.translation.y;
+            p4.x += transform.translation.x;
+            p4.y += transform.translation.y;
+            
+            // Calculate the dot product of three points
+            let dot = |p1: Vec2, p2: Vec2, p3: Vec2| -> f32 {
+                ((p2.x - p1.x) * (p3.x - p1.x)) + ((p2.y - p1.y) * (p3.y - p1.y))
+            };
+
+            let mut hover = true;
+            
+            // Check if the muse cursor is within the rotated rectangle
+            if dot(p1, p2, **mw) <= 0.0 || 
+               dot(p2, p4, **mw) <= 0.0 || 
+               dot(p4, p3, **mw) <= 0.0 ||
+               dot(p3, p1, **mw) <= 0.0
             {
+                hover = false;
+            }
+
+
+            if hover {
                 //eprintln!("hover {:?}", entity);
                 commands.entity(entity).insert(Hover);
             } else {

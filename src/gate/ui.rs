@@ -81,7 +81,7 @@ pub fn ui_scroll_system(
     mut q_camera: Query<&mut Transform, With<MainCamera>>,
 ) {
     if let Ok(mut transform) = q_camera.get_single_mut() {
-        let res = egui::Area::new("zoom_area")
+        egui::Area::new("zoom_area")
             .anchor(egui::Align2::LEFT_BOTTOM, egui::Vec2::new(5., -5.))
             .show(egui_context.ctx(), |ui| {
                 let mut x = transform.scale.x;

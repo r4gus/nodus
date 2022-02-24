@@ -220,7 +220,7 @@ fn reconnect_gates_event_system(
 fn replace_entity_id_(old: Entity, new: Entity, con: &mut HashSet<(ConnInfo, ConnInfo)>) {
     let mut tmp = Vec::new();
 
-    for mut t in con.iter() {
+    for t in con.iter() {
         if t.0.entity == old && t.1.entity != old {
             tmp.push((
                 t.clone(),
@@ -265,7 +265,7 @@ fn replace_entity_id2_(old: Entity, new: Entity, v: &mut Vec<Entity>) {
 /// Replace the given `old` entity id with the `new` entity id within the
 /// target maps of all NodusComponent's of the undo/redo stack.
 fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
-    for mut action in &mut stack.undo {
+    for action in &mut stack.undo {
         match action {
             Action::Insert(ncs) => {
                 replace_entity_id_(old, new, &mut ncs.1);
@@ -277,7 +277,7 @@ fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
         }
     }
 
-    for mut action in &mut stack.redo {
+    for action in &mut stack.redo {
         match action {
             Action::Insert(ncs) => {
                 replace_entity_id_(old, new, &mut ncs.1);
@@ -484,7 +484,7 @@ pub fn remove(
                 for &child in children.iter() {
                     if let Ok(conns) = q_connectors.get(child) {
                         for &connection in conns.iter() {
-                            if let Ok((entity, line)) = q_line.get(connection) {
+                            if let Ok((_entity, line)) = q_line.get(connection) {
                                 if let Ok(parent1) = q_parent.get(line.output.entity) {
                                     if let Ok(parent2) = q_parent.get(line.input.entity) {
                                         // By using a HashSet we dont need to check
