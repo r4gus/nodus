@@ -57,18 +57,19 @@ impl Geometry for AnsiGateShape {
 pub struct BritishStandard;
 
 impl Gate {
-    fn body_from_path(position: Vec3, path: PathBuilder) -> ShapeBundle {
+    fn body_from_path(position: Vec3, rotation: Quat, path: PathBuilder) -> ShapeBundle {
         GeometryBuilder::build_as(
             &AnsiGateShape { path: path.build() },
             DrawMode::Outlined {
                 fill_mode: FillMode::color(Color::WHITE),
                 outline_mode: StrokeMode::new(Color::BLACK, 6.0),
             },
-            Transform::from_xyz(position.x, position.y, position.z),
+            Transform::from_xyz(position.x, position.y, position.z)
+                .with_rotation(rotation),
         )
     }
 
-    pub fn body(position: Vec3, size: Vec2) -> ShapeBundle {
+    pub fn body(position: Vec3, rotation: Quat, size: Vec2) -> ShapeBundle {
         let shape = shapes::Rectangle {
             extents: Vec2::new(size.x, size.y),
             ..shapes::Rectangle::default()
@@ -80,7 +81,8 @@ impl Gate {
                 fill_mode: FillMode::color(Color::WHITE),
                 outline_mode: StrokeMode::new(Color::BLACK, 6.0),
             },
-            Transform::from_xyz(position.x, position.y, position.z),
+            Transform::from_xyz(position.x, position.y, position.z)
+                .with_rotation(rotation),
         )
     }
 
@@ -105,6 +107,7 @@ impl Gate {
         commands: &mut Commands,
         name: &str,
         position: Vec2,
+        rotation: Quat,
         size: Vec2,
         in_range: NodeRange,
         out_range: NodeRange,
@@ -136,6 +139,7 @@ impl Gate {
                 distances = get_distances(ins as f32, outs as f32, size.x, size.y);
                 commands.entity(gate).insert_bundle(Gate::body_from_path(
                     Vec3::new(position.x, position.y, z),
+                    rotation,
                     path,
                 ));
             }
@@ -145,6 +149,7 @@ impl Gate {
                     .entity(gate)
                     .insert_bundle(Gate::body(
                         Vec3::new(position.x, position.y, z),
+                        rotation,
                         Vec2::new(distances.width, distances.height),
                     ))
                     .insert(BritishStandard);
@@ -230,6 +235,7 @@ impl Gate {
     pub fn not_gate_bs_(
         commands: &mut Commands,
         position: Vec2,
+        rotation: Quat,
         ins: usize,
         outs: usize,
         font: Handle<Font>,
@@ -238,6 +244,7 @@ impl Gate {
             commands,
             "NOT Gate",
             position,
+            rotation,
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 1, max: 1 },
             NodeRange { min: 1, max: 1 },
@@ -256,13 +263,19 @@ impl Gate {
         g
     }
 
-    pub fn not_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
-        Self::not_gate_bs_(commands, position, 1, 1, font)
+    pub fn not_gate_bs(
+        commands: &mut Commands, 
+        position: Vec2, 
+        rotation: Quat, 
+        font: Handle<Font>
+    ) -> Entity {
+        Self::not_gate_bs_(commands, position, rotation, 1, 1, font)
     }
 
     pub fn and_gate_bs_(
         commands: &mut Commands,
         position: Vec2,
+        rotation: Quat, 
         ins: usize,
         outs: usize,
         font: Handle<Font>,
@@ -271,6 +284,7 @@ impl Gate {
             commands,
             "AND Gate",
             position,
+            rotation,
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
@@ -298,13 +312,19 @@ impl Gate {
         g
     }
 
-    pub fn and_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
-        Self::and_gate_bs_(commands, position, 2, 1, font)
+    pub fn and_gate_bs(
+        commands: &mut Commands, 
+        position: Vec2, 
+        rotation: Quat, 
+        font: Handle<Font>
+    ) -> Entity {
+        Self::and_gate_bs_(commands, position, rotation, 2, 1, font)
     }
 
     pub fn nand_gate_bs_(
         commands: &mut Commands,
         position: Vec2,
+        rotation: Quat, 
         ins: usize,
         outs: usize,
         font: Handle<Font>,
@@ -313,6 +333,7 @@ impl Gate {
             commands,
             "NAND Gate",
             position,
+            rotation,
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
@@ -340,13 +361,19 @@ impl Gate {
         g
     }
 
-    pub fn nand_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
-        Self::nand_gate_bs_(commands, position, 2, 1, font)
+    pub fn nand_gate_bs(
+        commands: &mut Commands, 
+        position: Vec2, 
+        rotation: Quat, 
+        font: Handle<Font>
+    ) -> Entity {
+        Self::nand_gate_bs_(commands, position, rotation, 2, 1, font)
     }
 
     pub fn or_gate_bs_(
         commands: &mut Commands,
         position: Vec2,
+        rotation: Quat, 
         ins: usize,
         outs: usize,
         font: Handle<Font>,
@@ -355,6 +382,7 @@ impl Gate {
             commands,
             "OR Gate",
             position,
+            rotation,
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
@@ -382,13 +410,19 @@ impl Gate {
         g
     }
 
-    pub fn or_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
-        Self::or_gate_bs_(commands, position, 2, 1, font)
+    pub fn or_gate_bs(
+        commands: &mut Commands, 
+        position: Vec2, 
+        rotation: Quat, 
+        font: Handle<Font>
+    ) -> Entity {
+        Self::or_gate_bs_(commands, position, rotation, 2, 1, font)
     }
 
     pub fn nor_gate_bs_(
         commands: &mut Commands,
         position: Vec2,
+        rotation: Quat, 
         ins: usize,
         outs: usize,
         font: Handle<Font>,
@@ -397,6 +431,7 @@ impl Gate {
             commands,
             "NOR Gate",
             position,
+            rotation,
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
@@ -424,13 +459,19 @@ impl Gate {
         g
     }
 
-    pub fn nor_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
-        Self::nor_gate_bs_(commands, position, 2, 1, font)
+    pub fn nor_gate_bs(
+        commands: &mut Commands, 
+        position: Vec2, 
+        rotation: Quat, 
+        font: Handle<Font>
+    ) -> Entity {
+        Self::nor_gate_bs_(commands, position, rotation, 2, 1, font)
     }
 
     pub fn xor_gate_bs_(
         commands: &mut Commands,
         position: Vec2,
+        rotation: Quat, 
         ins: usize,
         outs: usize,
         font: Handle<Font>,
@@ -439,6 +480,7 @@ impl Gate {
             commands,
             "XOR Gate",
             position,
+            rotation,
             Vec2::new(GATE_WIDTH, GATE_HEIGHT),
             NodeRange { min: 2, max: 16 },
             NodeRange { min: 1, max: 1 },
@@ -471,15 +513,26 @@ impl Gate {
         g
     }
 
-    pub fn xor_gate_bs(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
-        Self::xor_gate_bs_(commands, position, 2, 1, font)
+    pub fn xor_gate_bs(
+        commands: &mut Commands, 
+        position: Vec2, 
+        rotation: Quat, 
+        font: Handle<Font>
+    ) -> Entity {
+        Self::xor_gate_bs_(commands, position, rotation, 2, 1, font)
     }
 
-    pub fn high_const(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
+    pub fn high_const(
+        commands: &mut Commands, 
+        position: Vec2, 
+        rotation: Quat, 
+        font: Handle<Font>
+    ) -> Entity {
         let g = Gate::spawn(
             commands,
             "HIGH Constant",
             position,
+            rotation,
             Vec2::new(GATE_WIDTH, GATE_WIDTH),
             NodeRange { min: 0, max: 0 },
             NodeRange { min: 1, max: 1 },
@@ -492,11 +545,17 @@ impl Gate {
         g
     }
 
-    pub fn low_const(commands: &mut Commands, position: Vec2, font: Handle<Font>) -> Entity {
+    pub fn low_const(
+        commands: &mut Commands, 
+        position: Vec2, 
+        rotation: Quat, 
+        font: Handle<Font>
+    ) -> Entity {
         let g = Gate::spawn(
             commands,
             "Low Constant",
             position,
+            rotation,
             Vec2::new(GATE_WIDTH, GATE_WIDTH),
             NodeRange { min: 0, max: 0 },
             NodeRange { min: 1, max: 1 },
@@ -558,6 +617,7 @@ pub fn change_input_system(
 
                 let gate = Gate::body(
                     Vec3::new(translation.x, translation.y, translation.z),
+                    transform.rotation,
                     Vec2::new(dists.width, dists.height),
                 );
 

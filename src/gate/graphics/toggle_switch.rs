@@ -17,7 +17,7 @@ pub struct ToggleSwitch;
 
 impl ToggleSwitch {
     /// Crate a new toggle switch at the specified position.
-    pub fn new(commands: &mut Commands, position: Vec2, state: State) -> Entity {
+    pub fn new(commands: &mut Commands, position: Vec2, rotation: Quat, state: State) -> Entity {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
         let switch = GeometryBuilder::build_as(
@@ -28,7 +28,8 @@ impl ToggleSwitch {
                 fill_mode: FillMode::color(Color::WHITE),
                 outline_mode: StrokeMode::new(Color::BLACK, 8.0),
             },
-            Transform::from_xyz(position.x, position.y, z),
+            Transform::from_xyz(position.x, position.y, z)
+                .with_rotation(rotation),
         );
 
         let parent = commands

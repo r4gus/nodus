@@ -51,13 +51,13 @@ impl LightBulb {
     }
 
     /// Create a new light bulb at the specified position.
-    pub fn spawn(commands: &mut Commands, position: Vec2, state: State) -> Entity {
+    pub fn spawn(commands: &mut Commands, position: Vec2, rotation: Quat, state: State) -> Entity {
         let z = Z_INDEX.fetch_add(1, Ordering::Relaxed) as f32;
 
         let parent = commands
             .spawn()
-            .insert(Transform::from_xyz(position.x, position.y, z))
-            .insert(GlobalTransform::from_xyz(position.x, position.y, z))
+            .insert(Transform::from_xyz(position.x, position.y, z).with_rotation(rotation))
+            .insert(GlobalTransform::from_xyz(position.x, position.y, z).with_rotation(rotation))
             .insert(LightBulb { state: state })
             .insert(Name("Light Bulb".to_string()))
             .insert(Inputs(vec![state]))

@@ -233,6 +233,7 @@ pub fn load_event_system(
                             Some(Gate::and_gate_bs_(
                                 &mut commands,
                                 e.position,
+                                e.rotation.unwrap_or(Quat::IDENTITY),
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
@@ -242,6 +243,7 @@ pub fn load_event_system(
                             Some(Gate::nand_gate_bs_(
                                 &mut commands,
                                 e.position,
+                                e.rotation.unwrap_or(Quat::IDENTITY),
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
@@ -251,6 +253,7 @@ pub fn load_event_system(
                             Some(Gate::or_gate_bs_(
                                 &mut commands,
                                 e.position,
+                                e.rotation.unwrap_or(Quat::IDENTITY),
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
@@ -260,6 +263,7 @@ pub fn load_event_system(
                             Some(Gate::nor_gate_bs_(
                                 &mut commands,
                                 e.position,
+                                e.rotation.unwrap_or(Quat::IDENTITY),
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
@@ -269,6 +273,7 @@ pub fn load_event_system(
                             Some(Gate::xor_gate_bs_(
                                 &mut commands,
                                 e.position,
+                                e.rotation.unwrap_or(Quat::IDENTITY),
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
@@ -279,30 +284,41 @@ pub fn load_event_system(
                             Some(Gate::not_gate_bs_(
                                 &mut commands,
                                 e.position,
+                                e.rotation.unwrap_or(Quat::IDENTITY),
                                 e.inputs.unwrap(),
                                 e.outputs.unwrap(),
                                 font.main.clone(),
                             ))
                         }
                         NodeType::HighConst => {
-                            Some(Gate::high_const(&mut commands, e.position, font.main.clone()))
+                            Some(Gate::high_const(
+                                    &mut commands, 
+                                    e.position, 
+                                    e.rotation.unwrap_or(Quat::IDENTITY),
+                                    font.main.clone()
+                            ))
                         }
                         NodeType::LowConst => {
-                            Some(Gate::low_const(&mut commands, e.position, font.main.clone()))
+                            Some(Gate::low_const(
+                                    &mut commands, 
+                                    e.position, 
+                                    e.rotation.unwrap_or(Quat::IDENTITY),
+                                    font.main.clone()
+                            ))
                         }
                         NodeType::ToggleSwitch => {
                             if let Some(NodeState::ToggleSwitch(state)) = e.state {
-                                Some(ToggleSwitch::new(&mut commands, e.position, state))
+                                Some(ToggleSwitch::new(&mut commands, e.position, e.rotation.unwrap_or(Quat::IDENTITY), state))
                             } else { None }
                         }
                         NodeType::Clock => {
                             if let Some(NodeState::Clock(x1, x2, x3)) = e.state {
-                                Some(Clk::spawn(&mut commands, e.position, x1, x2, x3))
+                                Some(Clk::spawn(&mut commands, e.position, e.rotation.unwrap_or(Quat::IDENTITY), x1, x2, x3))
                             } else { None }
                         }
                         NodeType::LightBulb => {
                             if let Some(NodeState::LightBulb(state)) = e.state {
-                                Some(LightBulb::spawn(&mut commands, e.position, state))
+                                Some(LightBulb::spawn(&mut commands, e.position, e.rotation.unwrap_or(Quat::IDENTITY), state))
                             } else { None }
                         }
                     };

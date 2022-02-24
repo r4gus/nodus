@@ -16,6 +16,7 @@ impl Clk {
     pub fn spawn(
         commands: &mut Commands,
         position: Vec2,
+        rotation: Quat,
         clk: f32,
         start: f32,
         state: State,
@@ -34,7 +35,8 @@ impl Clk {
                     fill_mode: FillMode::color(Color::WHITE),
                     outline_mode: StrokeMode::new(Color::BLACK, 6.0),
                 },
-                Transform::from_xyz(position.x, position.y, z),
+                Transform::from_xyz(position.x, position.y, z)
+                    .with_rotation(rotation),
             ))
             .insert(Clk(clk, start))
             .insert(Name("Clock".to_string()))

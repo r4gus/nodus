@@ -304,6 +304,7 @@ fn insert(
                     Gate::and_gate_bs_(
                         commands,
                         e.position,
+                        e.rotation.unwrap_or(Quat::IDENTITY),
                         e.inputs.unwrap(),
                         e.outputs.unwrap(),
                         font.clone(),
@@ -315,6 +316,7 @@ fn insert(
                     Gate::nand_gate_bs_(
                         commands,
                         e.position,
+                        e.rotation.unwrap_or(Quat::IDENTITY),
                         e.inputs.unwrap(),
                         e.outputs.unwrap(),
                         font.clone(),
@@ -326,6 +328,7 @@ fn insert(
                     Gate::or_gate_bs_(
                         commands,
                         e.position,
+                        e.rotation.unwrap_or(Quat::IDENTITY),
                         e.inputs.unwrap(),
                         e.outputs.unwrap(),
                         font.clone(),
@@ -337,6 +340,7 @@ fn insert(
                     Gate::nor_gate_bs_(
                         commands,
                         e.position,
+                        e.rotation.unwrap_or(Quat::IDENTITY),
                         e.inputs.unwrap(),
                         e.outputs.unwrap(),
                         font.clone(),
@@ -348,6 +352,7 @@ fn insert(
                     Gate::xor_gate_bs_(
                         commands,
                         e.position,
+                        e.rotation.unwrap_or(Quat::IDENTITY),
                         e.inputs.unwrap(),
                         e.outputs.unwrap(),
                         font.clone(),
@@ -360,6 +365,7 @@ fn insert(
                     Gate::not_gate_bs_(
                         commands,
                         e.position,
+                        e.rotation.unwrap_or(Quat::IDENTITY),
                         e.inputs.unwrap(),
                         e.outputs.unwrap(),
                         font.clone(),
@@ -367,24 +373,34 @@ fn insert(
                 )
             }
             NodeType::HighConst => {
-                Some(Gate::high_const(commands, e.position, font.clone()))
+                Some(Gate::high_const(
+                        commands, 
+                        e.position, 
+                        e.rotation.unwrap_or(Quat::IDENTITY),
+                        font.clone()
+                ))
             }
             NodeType::LowConst => {
-                Some(Gate::low_const(commands, e.position, font.clone()))
+                Some(Gate::low_const(
+                        commands, 
+                        e.position, 
+                        e.rotation.unwrap_or(Quat::IDENTITY),
+                        font.clone()
+                ))
             }
             NodeType::ToggleSwitch => {
                 if let Some(NodeState::ToggleSwitch(state)) = e.state {
-                    Some(ToggleSwitch::new(commands, e.position, state))
+                    Some(ToggleSwitch::new(commands, e.position, e.rotation.unwrap_or(Quat::IDENTITY), state))
                 } else { None }
             }
             NodeType::Clock => {
                 if let Some(NodeState::Clock(x1, x2, x3)) = e.state {
-                    Some(Clk::spawn(commands, e.position, x1, x2, x3))
+                    Some(Clk::spawn(commands, e.position, e.rotation.unwrap_or(Quat::IDENTITY), x1, x2, x3))
                 } else { None }
             }
             NodeType::LightBulb => {
                 if let Some(NodeState::LightBulb(state)) = e.state {
-                    Some(LightBulb::spawn(commands, e.position, state))
+                    Some(LightBulb::spawn(commands, e.position, e.rotation.unwrap_or(Quat::IDENTITY), state))
                 } else { None }
             }
         };

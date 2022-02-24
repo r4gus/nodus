@@ -185,40 +185,40 @@ pub fn insert_gate_system(
     for ev in ev_insert.iter() {
         let entity = match ev.gate_type {
             NodeType::And => {
-                Some(Gate::and_gate_bs(&mut commands, ev.position, font.main.clone()))
+                Some(Gate::and_gate_bs(&mut commands, ev.position, Quat::IDENTITY, font.main.clone()))
             },
             NodeType::Nand => {
-                Some(Gate::nand_gate_bs(&mut commands, ev.position, font.main.clone()))
+                Some(Gate::nand_gate_bs(&mut commands, ev.position, Quat::IDENTITY, font.main.clone()))
             },
             NodeType::Or => {
-                Some(Gate::or_gate_bs(&mut commands, ev.position, font.main.clone()))
+                Some(Gate::or_gate_bs(&mut commands, ev.position, Quat::IDENTITY, font.main.clone()))
             },
             NodeType::Nor => {
-                Some(Gate::nor_gate_bs(&mut commands, ev.position, font.main.clone()))
+                Some(Gate::nor_gate_bs(&mut commands, ev.position, Quat::IDENTITY, font.main.clone()))
             },
             NodeType::Xor => {
-                Some(Gate::xor_gate_bs(&mut commands, ev.position, font.main.clone()))
+                Some(Gate::xor_gate_bs(&mut commands, ev.position, Quat::IDENTITY, font.main.clone()))
             },
             NodeType::Xnor => {
                 None
             },
             NodeType::Not => {
-                Some(Gate::not_gate_bs(&mut commands, ev.position, font.main.clone()))
+                Some(Gate::not_gate_bs(&mut commands, ev.position, Quat::IDENTITY, font.main.clone()))
             },
             NodeType::HighConst => {
-                Some(Gate::high_const(&mut commands, ev.position, font.main.clone()))
+                Some(Gate::high_const(&mut commands, ev.position, Quat::IDENTITY, font.main.clone()))
             },
             NodeType::LowConst => {
-                Some(Gate::low_const(&mut commands, ev.position, font.main.clone()))
+                Some(Gate::low_const(&mut commands, ev.position, Quat::IDENTITY, font.main.clone()))
             },
             NodeType::ToggleSwitch => {
-                Some(ToggleSwitch::new(&mut commands, ev.position, State::Low))
+                Some(ToggleSwitch::new(&mut commands, ev.position, Quat::IDENTITY, State::Low))
             },
             NodeType::Clock => {
-                Some(Clk::spawn(&mut commands, ev.position, 1.0, 0.0, State::Low))
+                Some(Clk::spawn(&mut commands, ev.position, Quat::IDENTITY, 1.0, 0.0, State::Low))
             },
             NodeType::LightBulb => {
-                Some(LightBulb::spawn(&mut commands, ev.position, State::None))
+                Some(LightBulb::spawn(&mut commands, ev.position, Quat::IDENTITY, State::None))
             },
             _ => { None }
         };
