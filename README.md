@@ -59,6 +59,8 @@ cargo run
 
 Here are some tips to solve known issues.
 
+> __Note:__ Make sure you've installed all required dependencies ([linux](https://github.com/bevyengine/bevy/blob/main/docs/linux_dependencies.md), [windows](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16)).
+
 ### Ubuntu linker error
 
 If you get the following link error in Ubunut/ Debian,
