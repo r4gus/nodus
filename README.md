@@ -55,11 +55,11 @@ cd nodus
 cargo run
 ```
 
-### Known Issues
+## Known Issues
 
 Here are some tips to solve known issues.
 
-#### Ubuntu linker error
+### Ubuntu linker error
 
 If you get the following link error in Ubunut/ Debian,
 
@@ -72,7 +72,7 @@ If you get the following link error in Ubunut/ Debian,
 
 try to install `libxcb-shape0-dev` and `libxcb-xfixes0-dev` separately, i.e. `sudo apt install libxcb-shape0-dev libxcb-xfixes0-dev`.
 
-#### AMD driver issue
+### AMD driver issue
 
 If you get the following runtime error,
 
@@ -80,7 +80,7 @@ If you get the following runtime error,
 thread 'main' panicked at 'Failed to acquire next swap chain texture!: Timeout', /home/USERNAME/.cargo/registry/src/github.com-1ecc6299db9ec823/bevy_render-0.6.0/src/view/window.rs:161:24
 ```
 
-you can either try to disable `vsync` in `src/main.rs`, or switch from `AMDVLK` to `RADV` (maybe [this](https://wiki.archlinux.org/title/Vulkan#Selecting_Vulkan_driver) can help).
+you can either try to disable `vsync` in `src/main.rs`, or switch from `AMDVLK` to `RADV`: `AMD_VULKAN_ICD=RADV cargo run` (maybe [this](https://wiki.archlinux.org/title/Vulkan#Selecting_Vulkan_driver) can help).
 
 
 ## Controls

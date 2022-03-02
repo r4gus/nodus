@@ -5,6 +5,7 @@ use crate::gate::{
     serialize::*,
 };
 use bevy::prelude::*;
+use crate::GameState;
 
 pub struct UndoPlugin;
 
@@ -12,15 +13,23 @@ impl Plugin for UndoPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<UndoEvent>()
             .add_event::<ReconnectGates>()
+            .add_event::<DisconnectEventUndo>()
             .insert_resource(UndoStack {
                 undo: Vec::new(),
                 redo: Vec::new(),
             })
-            .add_system(reconnect_gates_event_system.before("handle_undo"))
-            // Not pretty but this system must run after the disconnect
-            // system to prevent program crashes due to data races.
-            .add_system(handle_undo_event_system.label("handle_undo").after("disconnect"))
-            .add_system(listen_for_new_connections_system);
+            .add_system_set(
+                SystemSet::on_update(GameState::InGame)
+                    .label("undo")
+                    .with_system(reconnect_gates_event_system.before("handle_undo"))
+                    // Not pretty but this system must run after the disconnect
+                    // system to prevent program crashes due to data races.
+                    .with_system(handle_undo_event_system.label("handle_undo").after("disconnect"))
+                    .with_system(listen_for_new_connections_system)
+                    // Alot of systems run after disconnect to prevent Segfaults,
+                    // i.e. we must run this system also before the others.
+                    .with_system(disconnect_event_system_undo.before("disconnect").after("draw_line"))
+            );
     }
 }
 
@@ -32,9 +41,9 @@ pub enum UndoEvent {
 
 #[derive(Debug, Clone)]
 pub enum Action {
-    Insert((Vec<NodusComponent>, HashSet<(ConnInfo, ConnInfo)>)),
+    Insert((Vec<NodusComponent>, HashSet<(ConnInfo, ConnInfo, Entity)>)),
     Remove(Vec<Entity>),
-    InsertConnection(Entity),
+    InsertConnection((ConnInfo, ConnInfo, Entity)),
     RemoveConnection(Entity),
 }
 
@@ -64,6 +73,7 @@ pub fn handle_undo_event_system(
     q_line: Query<(Entity, &ConnectionLine)>,
     q_parent: Query<&Parent>,
     mut ev_disconnect: EventWriter<DisconnectEvent>,
+    mut ev_disconnect_undo: EventWriter<DisconnectEventUndo>,
     mut ev_conn: EventWriter<ReconnectGates>,
 ) {
     let font: Handle<Font> = server.load("fonts/hack.bold.ttf");
@@ -93,7 +103,7 @@ pub fn handle_undo_event_system(
                                         );
                                     }
                                 }
-                                ev_conn.send(ReconnectGates(e.1));
+                                ev_conn.send(ReconnectGates(e.1, None));
                                 stack.redo.push(Action::Remove(entities));
                             }
                         }
@@ -112,11 +122,17 @@ pub fn handle_undo_event_system(
                             }
                         }
                         Action::RemoveConnection(c) => {
-                            ev_disconnect.send(DisconnectEvent {
+                            ev_disconnect_undo.send(DisconnectEventUndo {
                                 connection: c,
                                 in_parent: None,
+                                action: UndoEvent::Redo,
                             });
                         }
+                        Action::InsertConnection(con) => {
+                            let mut h = HashSet::new();
+                            h.insert(con);
+                            ev_conn.send(ReconnectGates(h, Some(UndoEvent::Redo)));
+                        },
                         _ => { }
                     }
                 }
@@ -145,7 +161,7 @@ pub fn handle_undo_event_system(
                                     }
                                 }
 
-                                ev_conn.send(ReconnectGates(e.1));
+                                ev_conn.send(ReconnectGates(e.1, None));
                                 stack.undo.push(Action::Remove(entities));
                             }
                         },
@@ -164,10 +180,16 @@ pub fn handle_undo_event_system(
                             }
                         },
                         Action::RemoveConnection(c) => {
-                            ev_disconnect.send(DisconnectEvent {
+                            ev_disconnect_undo.send(DisconnectEventUndo {
                                 connection: c,
                                 in_parent: None,
+                                action: UndoEvent::Undo,
                             });
+                        },
+                        Action::InsertConnection(con) => {
+                            let mut h = HashSet::new();
+                            h.insert(con);
+                            ev_conn.send(ReconnectGates(h, Some(UndoEvent::Undo)));
                         },
                         _ => { }
                     }
@@ -177,38 +199,40 @@ pub fn handle_undo_event_system(
     }
 }
 
-pub struct ReconnectGates(pub HashSet<(ConnInfo, ConnInfo)>);
+pub struct ReconnectGates(
+    pub HashSet<(ConnInfo, ConnInfo, Entity)>,
+    Option<UndoEvent>
+);
 
 fn reconnect_gates_event_system(
     mut ev_conn: EventReader<ReconnectGates>,
-    mut cev: EventWriter<ConnectEvent>,
     q_children: Query<&Children>,
     q_conn: Query<(Entity, &Connector)>,
+
+    mut commands: Commands,
+    mut q_conns: Query<(&Parent, &mut Connections), ()>,
+    mut q_parent: Query<&mut Targets>,
+    
+    mut stack: ResMut<UndoStack>,
 ) {
     for conns in ev_conn.iter() { 
-        'rg_loop: for (lhs, rhs) in conns.0.iter() {
-            if let Ok(lhs_children) = q_children.get(lhs.entity) {
-                if let Ok(rhs_children) = q_children.get(rhs.entity) {
-                    for &lhs_child in lhs_children.iter() {
-                        if let Ok((lhs_e, lhs_con)) = q_conn.get(lhs_child) {
-                            if lhs_con.index == lhs.index &&
-                                lhs_con.ctype == ConnectorType::Out {
-                                for &rhs_child in rhs_children.iter() {
-                                    if let Ok((rhs_e, rhs_con)) = q_conn.get(rhs_child) {
-                                        if rhs_con.index == rhs.index &&
-                                            rhs_con.ctype == ConnectorType::In {
-                                            cev.send(ConnectEvent {
-                                                output: lhs_e,
-                                                output_index: lhs.index,
-                                                input: rhs_e,
-                                                input_index: rhs.index,
-                                                signal_success: false,
-                                            });
-                                            continue 'rg_loop;
-                                        }
-                                    }
-                                }
-                            }
+        for conn in conns.0.iter() {
+            if let Ok(e) = reconnect_gates(
+                &q_children,
+                &q_conn,
+                &mut commands,
+                &mut q_conns,
+                &mut q_parent,
+                &mut stack,
+                conn
+            ) {
+                if let Some(action) = conns.1 {
+                    match action {
+                        UndoEvent::Undo => {
+                            stack.undo.push(Action::RemoveConnection(e));
+                        },
+                        UndoEvent::Redo => {
+                            stack.redo.push(Action::RemoveConnection(e));
                         }
                     }
                 }
@@ -217,34 +241,65 @@ fn reconnect_gates_event_system(
     }
 }
 
-fn replace_entity_id_(old: Entity, new: Entity, con: &mut HashSet<(ConnInfo, ConnInfo)>) {
+fn reconnect_gates(
+    q_children: &Query<&Children>,
+    q_conn: &Query<(Entity, &Connector)>,
+
+    commands: &mut Commands,
+    q_conns: &mut Query<(&Parent, &mut Connections), ()>,
+    q_parent: &mut Query<&mut Targets>,
+    
+    stack: &mut ResMut<UndoStack>,
+    (lhs, rhs, old_id): &(ConnInfo, ConnInfo, Entity),
+) -> Result<Entity, ()> {
+    if let Ok(lhs_children) = q_children.get(lhs.entity) {
+        if let Ok(rhs_children) = q_children.get(rhs.entity) {
+            for &lhs_child in lhs_children.iter() {
+                if let Ok((lhs_e, lhs_con)) = q_conn.get(lhs_child) {
+                    if lhs_con.index == lhs.index &&
+                        lhs_con.ctype == ConnectorType::Out {
+                        for &rhs_child in rhs_children.iter() {
+                            if let Ok((rhs_e, rhs_con)) = q_conn.get(rhs_child) {
+                                if rhs_con.index == rhs.index &&
+                                    rhs_con.ctype == ConnectorType::In {
+                                    let new_id = connect(
+                                        commands,
+                                        q_conns,
+                                        q_parent,
+                                        &ConnectEvent {
+                                            output: lhs_e,
+                                            output_index: lhs.index,
+                                            input: rhs_e,
+                                            input_index: rhs.index,
+                                            signal_success: false,
+                                        }
+                                    );
+
+                                    replace_connection_entity_id_(
+                                        *old_id,
+                                        new_id,
+                                        stack,
+                                    );
+                                    
+                                    return Ok(new_id);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Err(())
+}
+
+fn replace_entity_id_(old: Entity, new: Entity, con: &mut HashSet<(ConnInfo, ConnInfo, Entity)>) {
     let mut tmp = Vec::new();
 
     for t in con.iter() {
-        if t.0.entity == old && t.1.entity != old {
-            tmp.push((
-                t.clone(),
-                (
-                    ConnInfo { entity: new, index: t.0.index },
-                    t.1.clone()
-                )
-            ));
-        } else if t.0.entity != old && t.1.entity == old {
-            tmp.push((
-                t.clone(),
-                (
-                    t.0.clone(),
-                    ConnInfo { entity: new, index: t.1.index },
-                )
-            ));
-        } else if t.0.entity == old && t.1.entity == old {
-            tmp.push((
-                t.clone(),
-                (
-                    ConnInfo { entity: new, index: t.0.index },
-                    ConnInfo { entity: new, index: t.1.index },
-                )
-            ));
+        if let Some(t_new) = replace_entity_id3_(old, new, t.clone()) {
+            tmp.push((t.clone(), t_new));
         }
     }
 
@@ -254,10 +309,60 @@ fn replace_entity_id_(old: Entity, new: Entity, con: &mut HashSet<(ConnInfo, Con
     }
 }
 
+fn replace_entity_id3_(old: Entity, new: Entity, t: (ConnInfo, ConnInfo, Entity)) -> Option<(ConnInfo, ConnInfo, Entity)> {
+    if t.0.entity == old && t.1.entity != old {
+        Some(
+            (
+                ConnInfo { entity: new, index: t.0.index },
+                t.1.clone(),
+                t.2
+            )
+        )
+    } else if t.0.entity != old && t.1.entity == old {
+        Some(
+            (
+                t.0.clone(),
+                ConnInfo { entity: new, index: t.1.index },
+                t.2
+            )
+        )
+    } else if t.0.entity == old && t.1.entity == old {
+        Some(
+            (
+                ConnInfo { entity: new, index: t.0.index },
+                ConnInfo { entity: new, index: t.1.index },
+                t.2,
+            )
+        )
+    } else {
+        None
+    }
+}
+
 fn replace_entity_id2_(old: Entity, new: Entity, v: &mut Vec<Entity>) {
     for i in 0..v.len() {
         if v[i] == old {
             v[i] = new;
+        }
+    }
+}
+
+fn replace_connection_entity_id_(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
+    for action in &mut stack.undo {
+        match action {
+            Action::RemoveConnection(ref mut id) => { 
+                if *id == old { *id = new; }
+            },
+            _ => { }
+        }
+    }
+
+    for action in &mut stack.redo {
+        match action {
+            Action::RemoveConnection(ref mut id) => { 
+                if *id == old { *id = new; }
+            },
+            _ => { }
         }
     }
 }
@@ -273,6 +378,11 @@ fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
             Action::Remove(ref mut es) => { 
                 replace_entity_id2_(old, new, es);
             },
+            Action::InsertConnection(ref mut con) => {
+                if let Some(c_new) = replace_entity_id3_(old, new, con.clone()) {
+                    *con = c_new;
+                }
+            },
             _ => { }
         }
     }
@@ -284,6 +394,11 @@ fn replace_entity_id(old: Entity, new: Entity, stack: &mut ResMut<UndoStack>) {
             },
             Action::Remove(ref mut es) => { 
                 replace_entity_id2_(old, new, es);
+            },
+            Action::InsertConnection(ref mut con) => {
+                if let Some(c_new) = replace_entity_id3_(old, new, con.clone()) {
+                    *con = c_new;
+                }
             },
             _ => { }
         }
@@ -432,7 +547,7 @@ pub fn remove(
     q_line: &Query<(Entity, &ConnectionLine)>,
     q_parent: &Query<&Parent>,
     ev_disconnect: &mut EventWriter<DisconnectEvent>,
-) -> Option<(Vec<NodusComponent>, HashSet<(ConnInfo, ConnInfo)>)> {
+) -> Option<(Vec<NodusComponent>, HashSet<(ConnInfo, ConnInfo, Entity)>)> {
     let mut res = Vec::new();
     let mut con = HashSet::new();
 
@@ -493,7 +608,8 @@ pub fn remove(
                                             // ConnInfo usually holds a reference to a connector
                                             // and not the gate itself, but we gonna reuse it here.
                                             ConnInfo { entity: parent1.0, index: line.output.index },
-                                            ConnInfo { entity: parent2.0, index: line.input.index }
+                                            ConnInfo { entity: parent2.0, index: line.input.index },
+                                            connection
                                         );
                                         con.insert(c);
                                         eprintln!("line");
@@ -526,5 +642,45 @@ fn listen_for_new_connections_system(
     for ev in ev_est.iter() {
         stack.undo.push(Action::RemoveConnection(ev.id));
         stack.redo.clear();
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DisconnectEventUndo {
+    pub connection: Entity,
+    pub in_parent: Option<Entity>,
+    pub action: UndoEvent,
+}
+
+pub fn disconnect_event_system_undo(
+    mut commands: Commands,
+    mut ev_disconnect: EventReader<DisconnectEventUndo>,
+    q_line: Query<&ConnectionLine>,
+    mut q_conn: Query<(&Parent, Entity, &mut Connections)>,
+    mut q_parent: Query<&mut Targets>,
+    mut q_input: Query<&mut Inputs>,
+    mut stack: ResMut<UndoStack>,
+) {
+    for ev in ev_disconnect.iter() {
+        if let Some(con) = disconnect(
+            &mut commands, 
+            &q_line, 
+            &mut q_conn, 
+            &mut q_parent, 
+            &mut q_input, 
+            &DisconnectEvent { 
+                connection: ev.connection, 
+                in_parent: ev.in_parent 
+            }) 
+        {
+            match ev.action {
+                UndoEvent::Undo => {
+                    stack.undo.push(Action::InsertConnection(con));
+                },
+                UndoEvent::Redo => {
+                    stack.redo.push(Action::InsertConnection(con));
+                }
+            }
+        }
     }
 }

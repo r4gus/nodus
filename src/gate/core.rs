@@ -496,56 +496,67 @@ pub fn connect_event_system(
     mut q_parent: Query<&mut Targets>,
 ) {
     for ev in ev_connect.iter() {
-        let line = ConnectionLine::new(
-            &mut commands,
-            ConnInfo {
-                entity: ev.output,
-                index: ev.output_index,
-            },
-            ConnInfo {
-                entity: ev.input,
-                index: ev.input_index,
-            },
-            (
-                // The points are not relevant for now and
-                // can be updated later on.
-                Vec3::new(0., 0., 0.),
-                Vec3::new(0., 0., 0.),
-            ),
-        );
+        let line = connect(&mut commands, &mut q_conns, &mut q_parent, &ev); 
 
-        // Add the new connection line to the set of lines already connected to the gate.
-        let input_parent = if let Ok((parent, mut connections)) = q_conns.get_mut(ev.input) {
-            connections.0.push(line);
-            parent.0
-        } else {
-            continue;
-        };
-
-        // From this moment on the input connector isn't free
-        // any more, up to the point where the connection is
-        // removed.
-        commands.entity(ev.input).remove::<Free>();
-
-        // Also update the output connector.
-        if let Ok((parent, mut connections)) = q_conns.get_mut(ev.output) {
-            connections.0.push(line);
-
-            // The target map hast to point to the input connector,
-            // so it can receive updates.
-            if let Ok(mut targets) = q_parent.get_mut(parent.0) {
-                targets[ev.output_index]
-                    .entry(input_parent)
-                    .or_insert(TIndex::from(Vec::new()))
-                    .push(ev.input_index);
-            }
-        }
-        
         // Hey everybody, a new connection has been established!
         if ev.signal_success {
             ev_est.send(NewConnectionEstablishedEvent { id: line });
         }
     }
+}
+
+pub fn connect(
+    commands: &mut Commands,
+    q_conns: &mut Query<(&Parent, &mut Connections), ()>,
+    q_parent: &mut Query<&mut Targets>,
+    ev: &ConnectEvent,
+) -> Entity {
+    let line = ConnectionLine::new(
+        commands,
+        ConnInfo {
+            entity: ev.output,
+            index: ev.output_index,
+        },
+        ConnInfo {
+            entity: ev.input,
+            index: ev.input_index,
+        },
+        (
+            // The points are not relevant for now and
+            // can be updated later on.
+            Vec3::new(0., 0., 0.),
+            Vec3::new(0., 0., 0.),
+        ),
+    );
+
+    // Add the new connection line to the set of lines already connected to the gate.
+    let input_parent = if let Ok((parent, mut connections)) = q_conns.get_mut(ev.input) {
+        connections.0.push(line);
+        parent.0
+    } else {
+        return line;
+    };
+
+    // From this moment on the input connector isn't free
+    // any more, up to the point where the connection is
+    // removed.
+    commands.entity(ev.input).remove::<Free>();
+
+    // Also update the output connector.
+    if let Ok((parent, mut connections)) = q_conns.get_mut(ev.output) {
+        connections.0.push(line);
+
+        // The target map hast to point to the input connector,
+        // so it can receive updates.
+        if let Ok(mut targets) = q_parent.get_mut(parent.0) {
+            targets[ev.output_index]
+                .entry(input_parent)
+                .or_insert(TIndex::from(Vec::new()))
+                .push(ev.input_index);
+        }
+    }
+    
+    line
 }
 
 /// Request to the [`disconnect_event_system`] to
@@ -566,72 +577,106 @@ pub fn disconnect_event_system(
     mut q_input: Query<&mut Inputs>,
 ) {
     for ev in ev_disconnect.iter() {
-        // Try to fetch the connection line.
-        if let Ok(line) = q_line.get(ev.connection) {
-            let in_parent: Option<Entity>;
+        disconnect(&mut commands, &q_line, &mut q_conn, &mut q_parent, &mut q_input, &ev);
+    }
+}
 
-            // Unlink input connector (right hand side)
-            if let Ok((parent_in, entity_in, mut connections_in)) =
-                q_conn.get_mut(line.input.entity)
-            {
-                in_parent = Some(parent_in.0);
+pub fn disconnect(
+    commands: &mut Commands,
+    q_line: &Query<&ConnectionLine>,
+    q_conn: &mut Query<(&Parent, Entity, &mut Connections)>,
+    q_parent: &mut Query<&mut Targets>,
+    q_input: &mut Query<&mut Inputs>,
+    ev: &DisconnectEvent,
+) -> Option<(ConnInfo, ConnInfo, Entity)> {
+    // Try to fetch the connection line.
+    if let Ok(line) = q_line.get(ev.connection) {
+        let in_parent: Option<Entity>;
+        let mut in_idx = 0;
+        let mut out_parent: Option<Entity> = None;
+        let mut out_idx = 0;
 
-                // Reset input state of the given connector.
-                if let Ok(mut inputs) = q_input.get_mut(parent_in.0) {
-                    inputs[line.input.index] = State::None;
-                }
+        // Unlink input connector (right hand side)
+        if let Ok((parent_in, entity_in, mut connections_in)) =
+            q_conn.get_mut(line.input.entity)
+        {
+            in_parent = Some(parent_in.0);
+            in_idx = line.input.index;
 
-                // Clear the input line from the vector and
-                // mark the connector as free.
-                connections_in.0.clear();
-                commands.entity(entity_in).insert(Free);
-            } else {
-                in_parent = ev.in_parent;
+            // Reset input state of the given connector.
+            if let Ok(mut inputs) = q_input.get_mut(parent_in.0) {
+                inputs[line.input.index] = State::None;
             }
 
-            // Unlink output connector (left hand side)
-            if let Ok((parent_out, _entity_out, mut connections_out)) =
-                q_conn.get_mut(line.output.entity)
-            {
-                let parent = in_parent.expect("There should always bee a parent set");
+            // Clear the input line from the vector and
+            // mark the connector as free.
+            connections_in.0.clear();
+            commands.entity(entity_in).insert(Free);
+        } else {
+            in_parent = ev.in_parent;
+        }
 
-                // Find and remove the given connection line.
-                if let Some(idx) = connections_out.0.iter().position(|x| *x == ev.connection) {
-                    connections_out.0.remove(idx);
-                }
+        // Unlink output connector (left hand side)
+        if let Ok((parent_out, _entity_out, mut connections_out)) =
+            q_conn.get_mut(line.output.entity)
+        {
+            out_parent = Some(parent_out.0);
+            out_idx = line.output.index;
 
-                // Unlink propagation target.
-                // Find the index of the input connector within the
-                // target map of the gate the output connector belongs
-                // to and remove the associated entry.
-                if let Ok(mut targets) = q_parent.get_mut(parent_out.0) {
-                    let size = targets[line.output.index]
-                        .get(&parent)
+            let parent = in_parent.expect("There should always bee a parent set");
+
+            // Find and remove the given connection line.
+            if let Some(idx) = connections_out.0.iter().position(|x| *x == ev.connection) {
+                connections_out.0.remove(idx);
+            }
+
+            // Unlink propagation target.
+            // Find the index of the input connector within the
+            // target map of the gate the output connector belongs
+            // to and remove the associated entry.
+            if let Ok(mut targets) = q_parent.get_mut(parent_out.0) {
+                let size = targets[line.output.index]
+                    .get(&parent)
+                    .expect("Should have associated entry")
+                    .len();
+
+                if size > 1 {
+                    if let Some(index) = targets[line.output.index]
+                        .get_mut(&parent)
                         .expect("Should have associated entry")
-                        .len();
-
-                    if size > 1 {
-                        if let Some(index) = targets[line.output.index]
+                        .iter()
+                        .position(|x| *x == line.input.index)
+                    {
+                        targets[line.output.index]
                             .get_mut(&parent)
                             .expect("Should have associated entry")
-                            .iter()
-                            .position(|x| *x == line.input.index)
-                        {
-                            targets[line.output.index]
-                                .get_mut(&parent)
-                                .expect("Should have associated entry")
-                                .remove(index);
-                        }
-                    } else {
-                        targets[line.output.index].remove(&parent);
+                            .remove(index);
                     }
+                } else {
+                    targets[line.output.index].remove(&parent);
                 }
             }
+        }
 
-            // Finally remove the connection line itself.
-            commands.entity(ev.connection).despawn_recursive();
+        // Finally remove the connection line itself.
+        commands.entity(ev.connection).despawn_recursive();
+
+        if in_parent.is_some() && out_parent.is_some() {
+            return Some((
+                ConnInfo {
+                    entity: out_parent.unwrap(),
+                    index: out_idx,
+                },
+                ConnInfo {
+                    entity: in_parent.unwrap(),
+                    index: in_idx,
+                },
+                ev.connection,
+            ));
         }
     }
+
+    None
 }
 
 #[cfg(test)]
