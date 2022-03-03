@@ -210,6 +210,7 @@ impl Gate {
                 size.y * 0.1,
                 ConnectorType::In,
                 (i - 1) as usize,
+                format!("x{}", i),
             ));
         }
         for i in 1..=outs {
@@ -223,6 +224,7 @@ impl Gate {
                 size.y * 0.1,
                 ConnectorType::Out,
                 (i - 1) as usize,
+                format!("y{}", i),
             ));
         }
         commands.entity(gate).push_children(&entvec);
@@ -682,6 +684,7 @@ pub fn change_input_system(
                     GATE_SIZE * 0.1,
                     ConnectorType::In,
                     i - 1,
+                    format!("y{}", i),
                 ));
             }
             if !entvec.is_empty() {

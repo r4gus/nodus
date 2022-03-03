@@ -105,10 +105,10 @@ impl Gate {
 
         let mut connectors = Vec::new();
         for i in 0..in_range.min as usize {
-            connectors.push(Connector::new(commands, ConnectorType::In, i));
+            connectors.push(Connector::new(commands, ConnectorType::In, i, format!("x{}", i)));
         }
         for i in 0..in_range.min as usize {
-            connectors.push(Connector::new(commands, ConnectorType::Out, i));
+            connectors.push(Connector::new(commands, ConnectorType::Out, i, format!("y{}", i)));
         }
         commands.entity(gate).push_children(&connectors);
 
@@ -143,10 +143,10 @@ impl Gate {
 
         let mut connectors = Vec::new();
         for i in 0..in_range.min as usize {
-            connectors.push(Connector::from_world(world, ConnectorType::In, i));
+            connectors.push(Connector::from_world(world, ConnectorType::In, i, format!("y{}", i)));
         }
         for i in 0..in_range.min as usize {
-            connectors.push(Connector::from_world(world, ConnectorType::Out, i));
+            connectors.push(Connector::from_world(world, ConnectorType::Out, i, format!("y{}", i)));
         }
         world.entity_mut(gate).push_children(&connectors);
 
@@ -314,22 +314,23 @@ pub struct Connector {
     /// The index of a connector, with a certain connection
     /// type, must be uniq in context of a logic component.
     pub index: usize,
+    pub name: String,
 }
 
 impl Connector {
-    pub fn new(commands: &mut Commands, ctype: ConnectorType, index: usize) -> Entity {
+    pub fn new(commands: &mut Commands, ctype: ConnectorType, index: usize, name: String) -> Entity {
         commands
             .spawn()
-            .insert(Connector { ctype, index })
+            .insert(Connector { ctype, index, name })
             .insert(Connections(Vec::new()))
             .insert(Free)
             .id()
     }
 
-    pub fn from_world(world: &mut World, ctype: ConnectorType, index: usize) -> Entity {
+    pub fn from_world(world: &mut World, ctype: ConnectorType, index: usize, name: String) -> Entity {
         world
             .spawn()
-            .insert(Connector { ctype, index })
+            .insert(Connector { ctype, index, name })
             .insert(Connections(Vec::new()))
             .insert(Free)
             .id()

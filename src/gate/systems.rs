@@ -1,6 +1,6 @@
 use super::{
     core::{Name, *},
-    graphics::{clk::*, light_bulb::*, toggle_switch::*},
+    graphics::{clk::*, light_bulb::*, toggle_switch::*, segment_display::*},
     serialize::*,
     undo::*,
 };
@@ -33,7 +33,7 @@ pub fn drag_gate_system(
         Entity,
         (
             With<Drag>,
-            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>,
+            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>, With<SevenSegmentDisplay>)>,
         ),
     >,
 ) {
@@ -53,7 +53,7 @@ pub fn delete_gate_system(
         Entity,
         (
             With<Selected>,
-            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>,
+            Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>, With<SevenSegmentDisplay>)>,
         ),
     >,
     children: Query<&Children>,
@@ -220,6 +220,9 @@ pub fn insert_gate_system(
             NodeType::LightBulb => {
                 Some(LightBulb::spawn(&mut commands, ev.position, Quat::IDENTITY, State::None))
             },
+            NodeType::SevenSegmentDisplay => {
+                Some(SevenSegmentDisplay::spawn(&mut commands, ev.position, Quat::IDENTITY))
+            }
         };
 
         if let Some(entity) = entity {

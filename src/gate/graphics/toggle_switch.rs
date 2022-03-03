@@ -56,6 +56,7 @@ impl ToggleSwitch {
             GATE_SIZE * 0.1,
             ConnectorType::Out,
             0,
+            "y1".to_string(),
         );
 
         let factor = if state == State::High { 1. } else { -1. };

@@ -85,6 +85,7 @@ impl LightBulb {
             GATE_SIZE * 0.1,
             ConnectorType::In,
             0,
+            "x1".to_string(),
         );
 
         commands.entity(parent).push_children(&vec![bulb, child]);

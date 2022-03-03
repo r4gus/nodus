@@ -1,7 +1,7 @@
 use std::collections::hash_set::HashSet;
 use crate::gate::{
     core::{Name, *},
-    graphics::{clk::*, light_bulb::*, toggle_switch::*},
+    graphics::{clk::*, light_bulb::*, toggle_switch::*, segment_display::*},
     serialize::*,
 };
 use bevy::prelude::*;
@@ -517,6 +517,9 @@ fn insert(
                 if let Some(NodeState::LightBulb(state)) = e.state {
                     Some(LightBulb::spawn(commands, e.position, e.rotation.unwrap_or(Quat::IDENTITY), state))
                 } else { None }
+            }
+            NodeType::SevenSegmentDisplay => {
+                Some(SevenSegmentDisplay::spawn(commands, e.position, e.rotation.unwrap_or(Quat::IDENTITY)))
             }
         };
 

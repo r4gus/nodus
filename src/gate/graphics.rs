@@ -7,6 +7,7 @@ pub mod highlight;
 pub mod light_bulb;
 pub mod selector;
 pub mod toggle_switch;
+pub mod segment_display;
 
 use core::sync::atomic::AtomicI32;
 

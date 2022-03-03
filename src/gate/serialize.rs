@@ -33,6 +33,7 @@ pub enum NodeType {
     ToggleSwitch,
     Clock,
     LightBulb,
+    SevenSegmentDisplay,
 }
 
 #[derive(Debug, Clone, Component, Deserialize, Serialize)]
@@ -320,6 +321,9 @@ pub fn load_event_system(
                             if let Some(NodeState::LightBulb(state)) = e.state {
                                 Some(LightBulb::spawn(&mut commands, e.position, e.rotation.unwrap_or(Quat::IDENTITY), state))
                             } else { None }
+                        }
+                        NodeType::SevenSegmentDisplay => {
+                            None
                         }
                     };
 

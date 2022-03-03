@@ -74,6 +74,7 @@ impl Clk {
             GATE_SIZE * 0.1,
             ConnectorType::Out,
             0,
+            "y1".to_string()
         );
 
         commands.entity(clk).add_child(conn);

@@ -12,6 +12,7 @@ impl Connector {
         radius: f32,
         ctype: ConnectorType,
         index: usize,
+        name: String,
     ) -> Entity {
         let circle = shapes::Circle {
             radius: radius,
@@ -29,7 +30,7 @@ impl Connector {
 
         commands
             .spawn_bundle(connector)
-            .insert(Connector { ctype, index })
+            .insert(Connector { ctype, index, name })
             .insert(Connections(Vec::new()))
             .insert(Free)
             .insert(Interactable::new(
@@ -48,9 +49,31 @@ impl Connector {
         radius: f32,
         ctype: ConnectorType,
         index: usize,
+        name: String,
     ) -> Entity {
-        let id = Connector::with_shape(commands, position, radius, ctype, index);
+        let id = Connector::with_shape(commands, position, radius, ctype, index, name);
         let line = shapes::Line(Vec2::new(-position.x, 0.), Vec2::new(0., 0.));
+        let line_conn = GeometryBuilder::build_as(
+            &line,
+            DrawMode::Stroke(StrokeMode::new(Color::BLACK, 6.0)),
+            Transform::from_xyz(0., 0., -1.),
+        );
+
+        let line_id = commands.spawn_bundle(line_conn).id();
+        commands.entity(id).push_children(&[line_id]);
+        id
+    }
+
+    pub fn with_line_vert(
+        commands: &mut Commands,
+        position: Vec3,
+        radius: f32,
+        ctype: ConnectorType,
+        index: usize,
+        name: String,
+    ) -> Entity {
+        let id = Connector::with_shape(commands, position, radius, ctype, index, name);
+        let line = shapes::Line(Vec2::new(0., -position.y), Vec2::new(0., 0.));
         let line_conn = GeometryBuilder::build_as(
             &line,
             DrawMode::Stroke(StrokeMode::new(Color::BLACK, 6.0)),

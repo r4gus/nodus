@@ -10,7 +10,7 @@ use crate::gate::{
     core::*,
     graphics::{
         background::*, clk::*, connection_line::*, connector::*, gate::*, highlight::*,
-        light_bulb::*, selector::*, toggle_switch::*,
+        light_bulb::*, selector::*, toggle_switch::*, segment_display::*,
     },
     serialize::*,
     systems::*,
@@ -120,9 +120,14 @@ impl Plugin for LogicComponentSystem {
                     .with_system(update_lock),
             )
             .add_system_set(
-                SystemSet::on_enter(GameState::InGame), //.with_system(setup.system())
+                SystemSet::on_enter(GameState::InGame)
+                    .with_system(setup.system())
             );
 
         info!("NodePlugin loaded");
     }
+}
+
+pub fn setup(mut commands: Commands) {
+    SevenSegmentDisplay::spawn(&mut commands, Vec2::new(0.0, 0.0), Quat::IDENTITY);
 }
