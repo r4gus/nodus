@@ -98,6 +98,7 @@ impl Plugin for LogicComponentSystem {
                     .with_system(remove_highlight_system.before("disconnect"))
                     .with_system(change_highlight_system.before("disconnect"))
                     .with_system(light_bulb_system.system().before("disconnect"))
+                    .with_system(segment_system.before("disconnect"))
                     .with_system(toggle_switch_system.system().before("disconnect"))
                     .with_system(line_selection_system.system().after("draw_line"))
                     .with_system(draw_background_grid_system)
@@ -129,5 +130,4 @@ impl Plugin for LogicComponentSystem {
 }
 
 pub fn setup(mut commands: Commands) {
-    SevenSegmentDisplay::spawn(&mut commands, Vec2::new(0.0, 0.0), Quat::IDENTITY);
 }

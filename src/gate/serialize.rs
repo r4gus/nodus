@@ -2,7 +2,7 @@ use crate::{
     gate::{
         core::{Name, State, *},
         file_browser::*,
-        graphics::{clk::*, light_bulb::*, toggle_switch::*},
+        graphics::{clk::*, light_bulb::*, toggle_switch::*, segment_display::*,},
     },
     FontAssets,
 };
@@ -323,7 +323,13 @@ pub fn load_event_system(
                             } else { None }
                         }
                         NodeType::SevenSegmentDisplay => {
-                            None
+                            Some(
+                                SevenSegmentDisplay::spawn(
+                                    &mut commands,
+                                    e.position,
+                                    e.rotation.unwrap_or(Quat::IDENTITY),
+                                )
+                            )
                         }
                     };
 

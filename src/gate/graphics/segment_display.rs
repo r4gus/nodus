@@ -40,7 +40,7 @@ impl Geometry for SegmentShape {
 }
 
 impl SegmentShape {
-    pub fn spawn(commands: &mut Commands, position: Vec3, rotation: Quat, size: f32) -> Entity {
+    pub fn spawn(commands: &mut Commands, position: Vec3, rotation: Quat, size: f32, nr: u8) -> Entity {
         let segment = GeometryBuilder::build_as(
             &SegmentShape {
                 size,
@@ -53,7 +53,10 @@ impl SegmentShape {
                 .with_rotation(rotation),
         );
 
-        commands.spawn_bundle(segment).id()
+        commands
+            .spawn_bundle(segment)
+            .insert(Segment { nr })
+            .id()
     }
 }
 
@@ -75,13 +78,14 @@ impl SevenSegmentDisplay {
         
         let mut segments: Vec<Entity> = Vec::new();
         
-        for (pos, rot) in coords {
+        for (nr, (pos, rot)) in coords.iter().enumerate() {
             segments.push(
                 SegmentShape::spawn(
                     commands, 
-                    pos, 
-                    rot,
-                    segment_size
+                    *pos, 
+                    *rot,
+                    segment_size,
+                    nr as u8
                 )
             );
         }
@@ -137,5 +141,54 @@ impl SevenSegmentDisplay {
             .push_children(&segments);
 
         parent
+    }
+}
+
+const COLOR_OFF: Color = Color::WHITE;
+const COLOR_ON: Color = Color::RED;
+
+const DISPLAY_COLORS: [[Color; 7]; 16] = [
+    [COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_OFF],
+    [COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_OFF, COLOR_OFF, COLOR_OFF],
+    [COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_ON],
+    [COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_OFF, COLOR_ON],
+    [COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_OFF, COLOR_ON, COLOR_ON],
+    [COLOR_ON, COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_ON, COLOR_ON],
+    [COLOR_ON, COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON],
+    [COLOR_ON, COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_OFF, COLOR_OFF, COLOR_OFF],
+    [COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON],
+    [COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_ON, COLOR_ON],
+    [COLOR_ON, COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_ON],
+    [COLOR_OFF, COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON],
+    [COLOR_ON, COLOR_OFF, COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_OFF],
+    [COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_OFF, COLOR_ON],
+    [COLOR_ON, COLOR_OFF, COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_ON, COLOR_ON],
+    [COLOR_ON, COLOR_OFF, COLOR_OFF, COLOR_OFF, COLOR_ON, COLOR_ON, COLOR_ON],
+];
+
+pub fn segment_system(
+    q_seg: Query<(&Inputs, &SevenSegmentDisplay)>,
+    mut draw: Query<&mut DrawMode>,
+) {
+    for (inputs, display) in q_seg.iter() {
+        // Inputs are treated as little endian, i.e. 2^3 + 2^2 + 2^1 + 2^0.
+        let mut i = if inputs[3] == State::High { 1 } else { 0 };
+        i |= if inputs[2] == State::High { 1 } else { 0 } << 1;
+        i |= if inputs[1] == State::High { 1 } else { 0 } << 2;
+        i |= if inputs[0] == State::High { 1 } else { 0 } << 3;
+
+        for j in 0..7 {
+            let e = display.segments[j];
+            
+            if let Ok(mut mode) = draw.get_mut(e) {
+                if let DrawMode::Outlined {
+                    ref mut fill_mode,
+                    outline_mode: _,
+                } = *mode 
+                {
+                    fill_mode.color = DISPLAY_COLORS[i][j];
+                }
+            }
+        }
     }
 }

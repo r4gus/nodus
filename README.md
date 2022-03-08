@@ -14,7 +14,7 @@ a drag and drop interface.
 | Gates | Input controls | Output controls |
 |:-----:|:--------------:|:---------------:|
 |  AND  |   High const   |   Light bulb    |
-| NAND |   Low const    |                 |
+| NAND |   Low const    |    7-Segment display   |
 | OR | Toggle switch  |                 |
 | NOR |     Clock      |                 |
 | NOT |                |                 |
@@ -94,7 +94,6 @@ you can either try to disable `vsync` in `src/main.rs`, or switch from `AMDVLK` 
 ## Planned Features
 
 - [ ] Create new logic components from existing circuits
-- [ ] More output controls (e.g. 7 segment display)
 - [ ] Create truth tables from circuits
 
 ## Credits

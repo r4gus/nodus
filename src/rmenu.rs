@@ -87,6 +87,9 @@ pub struct GateAssets {
 
     #[asset(path = "gates/CLK.png")]
     pub clk: Handle<Image>,
+
+    #[asset(path = "gates/sevenseg.png")]
+    pub seg: Handle<Image>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -233,6 +236,11 @@ fn handle_radial_menu_event_system(
                                 "Light Bulb".to_string(),
                                 Vec2::new(80., 80.),
                             ),
+                            (
+                                assets.seg.clone(),
+                                "7-Segment Display".to_string(),
+                                Vec2::new(80., 80.),
+                            ),
                         ],
                     });
                     ms.0 = MenuStates::Outputs;
@@ -349,7 +357,11 @@ fn handle_radial_menu_event_system(
                 1 => {
                     ev_insert.send(InsertGateEvent::light(ev.position));
                     ms.0 = MenuStates::Idle;
-                }
+                },
+                2 => {
+                    ev_insert.send(InsertGateEvent::seg(ev.position));
+                    ms.0 = MenuStates::Idle;
+                },
                 _ => {
                     ev_open.send(OpenMenuEvent {
                         position: ev.position,

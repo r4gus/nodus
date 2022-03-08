@@ -172,6 +172,13 @@ impl InsertGateEvent {
             position,
         }
     }
+
+    pub fn seg(position: Vec2) -> Self {
+        Self {
+            gate_type: NodeType::SevenSegmentDisplay,
+            position,
+        }
+    }
 }
 
 pub fn insert_gate_system(

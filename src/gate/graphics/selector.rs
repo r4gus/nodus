@@ -1,6 +1,6 @@
 use crate::gate::{
     core::Gate,
-    graphics::{clk::Clk, light_bulb::LightBulb, toggle_switch::ToggleSwitch},
+    graphics::{clk::Clk, light_bulb::LightBulb, toggle_switch::ToggleSwitch, segment_display::*,},
 };
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
@@ -21,7 +21,7 @@ pub fn selector_system(
     mode: Res<InteractionMode>,
     q_gate: Query<
         (Entity, &Transform),
-        Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>)>,
+        Or<(With<Gate>, With<LightBulb>, With<ToggleSwitch>, With<Clk>, With<SevenSegmentDisplay>)>,
     >,
     q_hover: Query<Entity, With<Hover>>,
     mut q_select: Query<(Entity, &mut Path, &SelectBox), With<SelectBox>>,
