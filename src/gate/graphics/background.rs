@@ -14,15 +14,19 @@ pub fn draw_background_grid_system(
     )>,
 ) {
     if let Ok(transform) = q.q0().get_single() {
-        let x = transform.translation.x;
-        let y = transform.translation.y;
+        let mut x = transform.translation.x;
+        let mut y = transform.translation.y;
+        let mut x_sign = 1.;
+        let mut y_sign = 1.;
+        if x < 0.0 { x *= -1.; x_sign = -1.; }
+        if y < 0.0 { y *= -1.; y_sign = -1.; }
         let x_start = (x as u32 & !0xFFF) as f32;
         let y_start = (y as u32 & !0xFFF) as f32;
         let _scale = transform.scale.clone();
 
         if let Ok((_entity, mut bgt)) = q.q1().get_single_mut() {
-            bgt.translation.x = x_start;
-            bgt.translation.y = y_start;
+            bgt.translation.x = x_start * x_sign;
+            bgt.translation.y = y_start * y_sign;
         } else {
             let color = Color::rgba(0., 0., 0., 0.25);
             let window_size = get_primary_window_size(&wnds);
